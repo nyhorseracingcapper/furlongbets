@@ -5,6 +5,7 @@ export async function onRequestGet({ env }) {
   const verifier = rand(48);
   const challenge = b64url(await sha256(verifier));
   const state = rand(16);
+  const nonce = rand(16);
   const u = new URL('https://api.whop.com/oauth/authorize');
   u.searchParams.set('client_id', env.WHOP_APP_ID);
   u.searchParams.set('redirect_uri', env.REDIRECT_URI);
@@ -13,6 +14,7 @@ export async function onRequestGet({ env }) {
   u.searchParams.set('code_challenge', challenge);
   u.searchParams.set('code_challenge_method', 'S256');
   u.searchParams.set('state', state);
+  u.searchParams.set('nonce', nonce);
   const h = new Headers({ Location: u.toString() });
   h.append('Set-Cookie', `whop_pkce=${verifier}.${state}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=600`);
   return new Response(null, { status: 302, headers: h });
