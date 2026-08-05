@@ -4,32 +4,28 @@ async function hmac(secret, data){
   const s = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data));
   return btoa(String.fromCharCode(...new Uint8Array(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
-async function checkAccess(env, userId){
-  const r = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/${env.WHOP_PRODUCT_ID}`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }});
-  if(!r.ok) return false;
-  const a = await r.json();
-  return !!a.has_access && (a.access_level==='customer' || a.access_level==='admin');
-}
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code'), state = url.searchParams.get('state');
   const c = cookies(request); const [verifier, savedState] = (c['whop_pkce']||'').split('.');
-  const back = m => Response.redirect(url.origin + '/members.html?e=' + m, 302);
-  if(!code || !state || state!==savedState) return back('auth');
+  const back = (m, dbg) => Response.redirect(url.origin + '/members.html?e=' + m + (dbg? '&dbg=' + encodeURIComponent(dbg) : ''), 302);
+  if(!code || !state || state!==savedState) return back('auth','state_mismatch');
   const tr = await fetch('https://api.whop.com/oauth/token', { method:'POST', headers:{'Content-Type':'application/x-www-form-urlencoded'},
     body:new URLSearchParams({ grant_type:'authorization_code', code, redirect_uri:env.REDIRECT_URI, client_id:env.WHOP_APP_ID, client_secret:env.WHOP_CLIENT_SECRET, code_verifier:verifier }) });
-  if(!tr.ok) return back('token');
+  if(!tr.ok){ const t=await tr.text(); return back('token', tr.status+':'+t.slice(0,150)); }
   const tok = await tr.json();
   const ur = await fetch('https://api.whop.com/oauth/userinfo', { headers:{ Authorization:`Bearer ${tok.access_token}` }});
-  const user = await ur.json(); const userId = user.sub || user.id || user.user_id;
-  if(!userId) return back('user');
-  const ok = await checkAccess(env, userId);
+  const ubody = await ur.text(); let user={}; try{user=JSON.parse(ubody);}catch(e){}
+  const userId = user.sub || user.id || user.user_id;
+  if(!userId) return back('user', ur.status+':'+ubody.slice(0,150));
+  const ar = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/${env.WHOP_PRODUCT_ID}`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }});
+  const abody = await ar.text(); let a={}; try{a=JSON.parse(abody);}catch(e){}
+  const ok = ar.ok && !!a.has_access && (a.access_level==='customer' || a.access_level==='admin');
+  if(!ok) return back('nomember', 'uid='+userId+' acc'+ar.status+':'+abody.slice(0,150));
   const exp = Date.now() + 1000*60*60*24*30;
   const base = `${userId}.${exp}`; const sig = await hmac(env.SESSION_SECRET, base);
   const h = new Headers(); h.append('Set-Cookie','whop_pkce=; Path=/; Max-Age=0');
-  if(ok){
-    h.append('Set-Cookie', `furlong_session=${base}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*30}`);
-    h.set('Location', url.origin + '/members.html');
-  } else { h.set('Location', url.origin + '/members.html?e=nomember'); }
+  h.append('Set-Cookie', `furlong_session=${base}.${sig}; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=${60*60*24*30}`);
+  h.set('Location', url.origin + '/members.html');
   return new Response(null, { status:302, headers:h });
 }
