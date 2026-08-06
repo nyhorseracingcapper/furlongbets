@@ -5,10 +5,11 @@ async function hmac(secret, data){
   return btoa(String.fromCharCode(...new Uint8Array(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 async function checkAccess(env, userId){
-  const r = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/${env.WHOP_PRODUCT_ID}`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }});
+  const u = `https://api.whop.com/api/v2/memberships?user_id=${encodeURIComponent(userId)}&product_id=${encodeURIComponent(env.WHOP_PRODUCT_ID)}&valid=true&per=10`;
+  const r = await fetch(u, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}`, Accept:'application/json' }});
   if(!r.ok) return false;
-  const a = await r.json();
-  return !!a.has_access && (a.access_level==='customer' || a.access_level==='admin');
+  const j = await r.json();
+  return Array.isArray(j.data) && j.data.length > 0;
 }
 function fromB64url(s){ s=s.replace(/-/g,'+').replace(/_/g,'/'); while(s.length%4)s+='='; return Uint8Array.from(atob(s), c=>c.charCodeAt(0)); }
 async function verifySession(env, v){

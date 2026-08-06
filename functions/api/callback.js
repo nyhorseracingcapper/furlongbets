@@ -4,6 +4,13 @@ async function hmac(secret, data){
   const s = await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(data));
   return btoa(String.fromCharCode(...new Uint8Array(s))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
+async function memberships(env, userId, prod){
+  const u = `https://api.whop.com/api/v2/memberships?user_id=${encodeURIComponent(userId)}&product_id=${encodeURIComponent(prod)}&valid=true&per=10`;
+  const r = await fetch(u, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}`, Accept:'application/json' }});
+  const body = await r.text(); let j={}; try{j=JSON.parse(body);}catch(e){}
+  const list = Array.isArray(j.data) ? j.data : [];
+  return { status:r.status, count:list.length, body };
+}
 export async function onRequestGet({ request, env }) {
   const url = new URL(request.url);
   const code = url.searchParams.get('code'), state = url.searchParams.get('state');
@@ -18,15 +25,12 @@ export async function onRequestGet({ request, env }) {
   const ubody = await ur.text(); let user={}; try{user=JSON.parse(ubody);}catch(e){}
   const userId = user.sub || user.id || user.user_id;
   if(!userId) return back('user', ur.status+':'+ubody.slice(0,150));
-  const ar = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/${env.WHOP_PRODUCT_ID}`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }});
-  const abody = await ar.text(); let a={}; try{a=JSON.parse(abody);}catch(e){}
-  const ok = ar.ok && !!a.has_access && (a.access_level==='customer' || a.access_level==='admin');
+  const paid = await memberships(env, userId, env.WHOP_PRODUCT_ID);
+  const ok = paid.status===200 && paid.count>0;
   if(!ok){
-    const keyeq = (env.WHOP_API_KEY===env.WHOP_CLIENT_SECRET);
-    const klen = (env.WHOP_API_KEY||'').length;
-    let me='';
-    try{ const mr = await fetch('https://api.whop.com/api/v5/me', { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }}); me='me'+mr.status+':'+(await mr.text()).slice(0,60); }catch(e){ me='me_err'; }
-    return back('nomember', `uid=${userId} paid${ar.status}:${abody.slice(0,40)} keyeq=${keyeq} klen=${klen} ${me}`);
+    let free={status:'-',count:'-'};
+    try{ free = await memberships(env, userId, 'prod_VrgmwhPrbEZaF'); }catch(e){}
+    return back('nomember', `uid=${userId} paid_s${paid.status}n${paid.count} free_s${free.status}n${free.count} ${paid.body.slice(0,60)}`);
   }
   const exp = Date.now() + 1000*60*60*24*30;
   const base = `${userId}.${exp}`; const sig = await hmac(env.SESSION_SECRET, base);
