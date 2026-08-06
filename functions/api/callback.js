@@ -21,7 +21,11 @@ export async function onRequestGet({ request, env }) {
   const ar = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/${env.WHOP_PRODUCT_ID}`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }});
   const abody = await ar.text(); let a={}; try{a=JSON.parse(abody);}catch(e){}
   const ok = ar.ok && !!a.has_access && (a.access_level==='customer' || a.access_level==='admin');
-  if(!ok) return back('nomember', 'uid='+userId+' acc'+ar.status+':'+abody.slice(0,150));
+  if(!ok){
+    let free='';
+    try{ const fr = await fetch(`https://api.whop.com/api/v5/users/${userId}/access/prod_VrgmwhPrbEZaF`, { headers:{ Authorization:`Bearer ${env.WHOP_API_KEY}` }}); free='free'+fr.status+':'+(await fr.text()).slice(0,70); }catch(e){ free='free_err'; }
+    return back('nomember', 'uid='+userId+' paid'+ar.status+':'+abody.slice(0,70)+' '+free);
+  }
   const exp = Date.now() + 1000*60*60*24*30;
   const base = `${userId}.${exp}`; const sig = await hmac(env.SESSION_SECRET, base);
   const h = new Headers(); h.append('Set-Cookie','whop_pkce=; Path=/; Max-Age=0');
