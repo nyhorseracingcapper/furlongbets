@@ -221,3 +221,12 @@ h1{font-family:Fraunces;font-weight:900;font-size:clamp(40px,7vw,74px);line-heig
 .tp-m{margin-top:5px;font-size:12.5px;color:var(--mut)}
 .tp-m .tw{color:var(--gold2);font-weight:600}
 .tfoot{color:var(--dim);font-size:11.5px;line-height:1.7;margin-top:20px;max-width:74ch}
+/* Tournament nav pill — emerald "live" accent so it stands out */
+.pill.trn{color:#8ef0b8;border:1px solid #2a6f47;font-weight:700;
+  background:linear-gradient(180deg,rgba(47,210,126,.15),rgba(18,60,34,.20));box-shadow:0 6px 18px -10px rgba(47,210,126,.55)}
+.pill.trn:hover{color:#c7f8dc;border-color:#38e08a;transform:translateY(-1px);
+  background:linear-gradient(180deg,rgba(47,210,126,.24),rgba(18,60,34,.26))}
+.pill.trn.on{color:#c7f8dc;border-color:#38e08a}
+.pill.trn::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:#2fd27e;
+  margin-right:7px;vertical-align:middle;box-shadow:0 0 0 0 rgba(47,210,126,.6);animation:trnpulse 2.2s infinite}
+@keyframes trnpulse{0%{box-shadow:0 0 0 0 rgba(47,210,126,.55)}70%{box-shadow:0 0 0 7px rgba(47,210,126,0)}100%{box-shadow:0 0 0 0 rgba(47,210,126,0)}}
