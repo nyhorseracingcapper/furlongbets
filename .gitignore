@@ -1,0 +1,5 @@
+# FURLONG local helper files — never commit these (plaintext card / tooling)
+members_card_0817.html
+encrypt.html
+encrypt_members_card.mjs
+DEPLOY_0817_README.md
