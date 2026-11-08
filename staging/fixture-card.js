@@ -47,7 +47,9 @@
   root.FIXTURE_CARD = {
     fixture: true,
     label: 'SYNTHETIC FIXTURE — not a race card and not a forecast',
-    mmdd: '2026-11-07',
+    mmdd: '1107',
+    card_year: 2026,
+    source_captured_at: '2026-11-07T15:00:00-05:00',
     source_version: null,
     races: [
       { trk: 'FIXT', race: 1, surf: 'Dirt', dist: '6f', post: '3:15 PM', nSCRATCHES: 0, horses: field16, stage_orders: { first: orderA, second: orderB, finish: orderC } },

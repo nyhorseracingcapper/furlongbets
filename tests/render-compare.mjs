@@ -19,7 +19,10 @@ const inject = `
 document.getElementById('gate').style.display='none';
 window.fetch=function(){return Promise.reject(new Error('offline'));};
 DATA=window.FIXTURE_CARD;
-DATA.mmdd=new Intl.DateTimeFormat('en-CA',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+var et=new Intl.DateTimeFormat('en-US',{timeZone:'America/New_York',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+var g={}; et.forEach(function(p){g[p.type]=p.value;});
+DATA.mmdd=g.month+g.day;
+DATA.card_year=Number(g.year);
 init();
 </script>
 `;
