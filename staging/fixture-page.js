@@ -68,9 +68,7 @@
       host.innerHTML = '<div id="fu-banner-slot"></div><div id="fu-trust-slot"></div><div id="fu-rest-slot"></div>';
       host.dataset.ready = '1';
     }
-    document.getElementById('fu-banner-slot').innerHTML = FU.bannerHtml(m);
-    document.getElementById('fu-trust-slot').innerHTML = FU.trustHtml(m);
-    if (opts.rest !== false) document.getElementById('fu-rest-slot').innerHTML = FU.restHtml(m);
+    host.innerHTML = FU.compactRaceHtml(m);
     var rail = '<div class="fu-rail" role="tablist" aria-label="Fixture races">' + card.races.map(function (r) {
       var on = String(r.race) === String(sel.no) ? ' on' : '';
       return '<button type="button" class="fu-rpill' + on + '" aria-current="' + (on ? 'true' : 'false') + '" onclick="selectRace(\'FIXT\',' + r.race + ')">Race ' + r.race + '</button>';
@@ -92,6 +90,11 @@
   window.selectRace = function (trk, no) {
     sel = FU.orientMove(card.races, sel, { type: 'select', trk: trk, no: no });
     paint();
+  };
+  window.fuToggleOvalZoom = function () {
+    var el = document.getElementById('ovalViews');
+    if (!el) return;
+    el.classList.toggle('zoom');
   };
   window.fuFocusPgm = function (pgm) {
     sel = FU.orientMove(card.races, sel, { type: 'focus', pgm: pgm });

@@ -117,13 +117,14 @@ const gate = await evalJson(`({
   gate: !!document.querySelector('#gate'),
   unlock: !!document.querySelector('#unlock'),
   pw: document.querySelector('#pw') && document.querySelector('#pw').type,
+  brand: document.querySelector('.gatebox .gb') ? document.querySelector('.gatebox .gb').textContent : '',
   fixture: document.body.innerText.includes('International Velvet') || document.body.innerText.includes('Synthetic fixture'),
-  status: document.querySelector('#status').textContent,
+  board: document.body.innerText.includes('Supplemental runner board'),
   asset: !!document.querySelector('script[src*="usability.js"]')
 })`);
 check('password gate still covers the public card', gate.gate && gate.unlock && gate.pw === 'password');
-check('public card does not render the fixture', gate.fixture === false, JSON.stringify(gate));
-check('locked status is not a live claim', !/\blive\b/i.test(gate.status), gate.status);
+check('public gate keeps the Live Card name', gate.brand.includes('Live Card'), gate.brand);
+check('public card does not render the fixture or the rejected board', gate.fixture === false && gate.board === false, JSON.stringify(gate));
 check('usability asset is linked', gate.asset);
 await setViewport(390, 844);
 await shot('gate-390');
@@ -132,30 +133,24 @@ await go(base + '/staging/usability-fixture.html');
 await setViewport(1280, 900);
 let state = await evalJson(`(() => {
   const svgs = [...document.querySelectorAll('svg[data-stage]')];
-  const runners = [...document.querySelectorAll('.fu-runner')];
-  const names = runners.map(r => r.innerText);
-  const targets = ['#prevRace','#nextRace','#nextOpenBtn','.fu-rpill','.fu-runner'].flatMap(sel => [...document.querySelectorAll(sel)]);
+  const roster = document.querySelector('.fu-roster') ? document.querySelector('.fu-roster').textContent : '';
+  const targets = ['#prevRace','#nextRace','#nextOpenBtn','#ovalZoom','.fu-rpill'].flatMap(sel => [...document.querySelectorAll(sel)]);
   const short = targets.filter(el => el.getBoundingClientRect().height < 44).map(el => el.id || el.className);
   const tops = svgs.map(s => Math.round(s.getBoundingClientRect().top));
-  const longName = document.body.innerText.includes('International Velvet Thunderbolt of the Western Counties (IRE)');
   return {
     stages: svgs.map(s => s.getAttribute('data-stage')),
-    runners: runners.length,
-    has1A: names.some(n => n.startsWith('1A')),
-    has10: names.some(n => n.startsWith('10')),
-    has11: names.some(n => n.startsWith('11')),
-    longName,
+    roster,
     tokens1A: document.querySelectorAll('[data-pgm="1A"]').length,
     short,
     tops,
     pill: document.querySelector('#status').textContent,
-    summary: document.querySelector('.fu-ovals .sr-only')?.textContent || ''
+    summary: document.querySelector('.fu-ovals .sr-only')?.textContent || '',
+    columns: getComputedStyle(document.getElementById('ovalViews')).gridTemplateColumns
   };
 })()`);
 check('three stages on the fresh fixture', state.stages.join(',') === '1ST CALL,2ND CALL,FINISH', state.stages.join(','));
-check('16 starters including 1A, 10, and 11', state.runners === 16 && state.has1A && state.has10 && state.has11, JSON.stringify({ runners: state.runners, has1A: state.has1A }));
-check('long country-suffixed name is present', state.longName);
-check('1A is drawn on the ovals and the legend', state.tokens1A >= 4, String(state.tokens1A));
+check('roster keeps 1A, 10, 11, and the long name', state.roster.includes('1A') && state.roster.includes('#10') && state.roster.includes('#11') && state.roster.includes('International Velvet Thunderbolt of the Western Counties (IRE)'), state.roster.slice(0, 180));
+check('1A is drawn on all three ovals', state.tokens1A === 3, String(state.tokens1A));
 check('primary targets are at least 44px', state.short.length === 0, state.short.slice(0, 6).join(','));
 check('desktop ovals sit on one row', Math.max(...state.tops) - Math.min(...state.tops) < 40, state.tops.join(','));
 check('fresh fixture pill is a labeled simulation', state.pill.startsWith('FIXTURE SIMULATION') && !/\blive\b/i.test(state.pill), state.pill);
@@ -170,18 +165,24 @@ check('previous race is disabled on the first race', focused.prevDisabled === tr
 await setViewport(768, 1000);
 state = await evalJson(`JSON.stringify([...document.querySelectorAll('svg[data-stage]')].map(s => Math.round(s.getBoundingClientRect().top)))`);
 const tops768 = JSON.parse(state);
-check('768px stacks the three ovals', tops768[1] > tops768[0] + 80 && tops768[2] > tops768[1] + 80, state);
+check('768px keeps the three ovals side by side', tops768[1] - tops768[0] < 40 && tops768[2] - tops768[1] < 40, state);
 await shot('tablet-768-stacked');
 
 await setViewport(390, 844);
 await shot('phone-390-stacked');
 await setViewport(360, 780);
 const phone = await evalJson(`(() => {
-  const name = document.querySelector('.fu-name');
-  const clipped = name.scrollWidth > name.clientWidth + 2;
-  return { clipped, text: name.textContent };
+  const name = document.querySelector('.fu-roster');
+  const tops = [...document.querySelectorAll('svg[data-stage]')].map(s => Math.round(s.getBoundingClientRect().top));
+  const clipped = name.scrollWidth > name.clientWidth + 8;
+  return { clipped, text: name.textContent.includes('(IRE)'), tops };
 })()`);
-check('a long name is not clipped at 360px', phone.clipped === false, phone.text);
+check('a long name is not clipped at 360px', phone.clipped === false && phone.text, String(phone.clipped));
+check('360px keeps three ovals side by side', phone.tops[2] - phone.tops[0] < 40, phone.tops.join(','));
+await evalJson(`document.getElementById('ovalZoom').click()`);
+const enlarged = await evalJson(`document.getElementById('ovalViews').classList.contains('zoom')`);
+check('enlarge is a click, not the default phone layout', enlarged === true);
+await evalJson(`document.getElementById('ovalZoom').click()`);
 await shot('phone-360');
 
 await setViewport(1280, 900);
@@ -189,8 +190,8 @@ await evalJson(`document.body.style.zoom='200%'`);
 await new Promise((r) => setTimeout(r, 100));
 const zoomed = await evalJson(`(() => {
   const stages = document.querySelectorAll('svg[data-stage]').length;
-  const name = [...document.querySelectorAll('.fu-name')].find(n => n.textContent.includes('International'));
-  return { stages, name: name ? name.textContent : '', height: document.getElementById('nextRace').getBoundingClientRect().height };
+  const roster = document.querySelector('.fu-roster');
+  return { stages, name: roster ? roster.textContent : '', height: document.getElementById('nextRace').getBoundingClientRect().height };
 })()`);
 check('200% zoom still shows three stages and the long name', zoomed.stages === 3 && zoomed.name.includes('(IRE)'), JSON.stringify(zoomed));
 await shot('zoom-200');

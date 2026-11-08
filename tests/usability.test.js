@@ -8,12 +8,12 @@ const root = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('release constants match the existing windows and name the rollback', () => {
-  assert.equal(FU.RELEASE.version, 't438-usability-1');
+  assert.equal(FU.RELEASE.version, 't438-usability-2');
   assert.equal(FU.RELEASE.quoteFreshS, 30);
   assert.equal(FU.RELEASE.statusFreshS, 150);
   assert.equal(FU.RELEASE.pollMs, 3000);
   assert.ok(FU.RELEASE.rollback.length >= 4);
-  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-1/);
+  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-2/);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /revert/i);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /Do not merge/);
 });
@@ -113,14 +113,17 @@ test('missing and stale quotes are never confirmed scratches, even when most of 
   quotes['4'] = { dec: 6, ts: now - 90000, age: 90 };
   quotes['8'] = { dec: 0, ts: now - 80000, age: 80 };
   quotes['6'] = { dec: 0, ts: now - 3000, age: 3 };
+  quotes['2'] = { dec: 0, ts: now - 3000, age: 3, scratch: true };
   quotes['9'] = { dec: 5, ts: now + 60000, age: -60 };
   const c = FU.classifyRunners(horses, quotes, now);
   const kind = Object.fromEntries(c.rows.map((r) => [r.pgm, r.kind]));
   assert.equal(kind['1'], 'confirmed');
   assert.match(c.byPgm['1'].label, /card roster/);
   assert.match(c.byPgm['1'].label, /ET/);
-  assert.equal(kind['6'], 'confirmed');
-  assert.match(c.byPgm['6'].label, /fresh tote/);
+  assert.equal(kind['2'], 'confirmed');
+  assert.match(c.byPgm['2'].label, /scratch flag/);
+  assert.notEqual(kind['6'], 'confirmed');
+  assert.match(c.byPgm['6'].label, /no scratch flag/);
   assert.notEqual(kind['7'], 'confirmed');
   assert.match(c.byPgm['7'].label, /not a confirmed scratch/);
   assert.notEqual(kind['4'], 'confirmed');
@@ -128,12 +131,15 @@ test('missing and stale quotes are never confirmed scratches, even when most of 
   assert.match(c.byPgm['8'].label, /not a confirmed scratch/);
   assert.notEqual(kind['9'], 'confirmed');
   assert.equal(c.byPgm['9'].quoteState, 'future');
-  assert.equal(c.confirmed.map((r) => r.pgm).sort().join(','), '1,6');
+  assert.equal(c.confirmed.map((r) => r.pgm).sort().join(','), '1,2');
   const probs = FU.adjustedProbs(horses, c.confirmed.map((r) => r.pgm));
   assert.ok(Math.abs(probs.sumP - 1) < 1e-8);
   assert.ok(probs.dropped.includes('7') === false);
   assert.ok(probs.active.some((x) => x.pgm === '7'));
   assert.ok(probs.active.some((x) => x.pgm === '1A'));
+  const notes = FU.captureNotes({ nSCRATCHES: 0, horses: [{ pgm: '3', nAE: 1 }, { pgm: '4', nAE: 0 }] });
+  assert.match(notes.join(' '), /not a live late-scratch/);
+  assert.match(notes.join(' '), /not confirmed starters/);
 });
 
 test('adjusted probabilities sum to 1 without rewriting raw values', () => {
@@ -330,17 +336,28 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('setInterval(fetchStatus,3000)');
   has('FRESH_QUOTE_S=30');
   has('STALE_STATUS_S=150');
-  has('js/usability.js?v=t438-usability-1');
-  has('css/usability.css?v=t438-usability-1');
+  has('js/usability.js?v=t438-usability-2');
+  has('css/usability.css?v=t438-usability-2');
   has('FU.classifyRunners');
   has('function onClockTick');
   has('visibilitychange');
   has('function tryUnlock');
   has('F/trAKbjK/yAR92r1Um/Iw==');
   assert.equal(index.includes('off the tote (late scratch)'), false);
+  assert.equal(index.includes('Supplemental runner board'), false);
   assert.equal(index.includes('International Velvet'), false);
   assert.equal(index.includes('usability-fixture'), false);
   assert.equal(index.includes('const ENC = {'), true);
+  assert.equal(index.includes('FURLONG Live Card'), true);
+  const crypto = require('node:crypto');
+  const sha = (rel) => crypto.createHash('sha256').update(fs.readFileSync(path.join(root, rel))).digest('hex');
+  assert.equal(sha('functions/api/login.js'), '1741004804072d7b9d4849916adbac25785b7ce5c6542c3b933797faf6eff570');
+  assert.equal(sha('functions/api/card.js'), '62956b53434c2602cd876b46b5b75e0eccdc0347ed49b63deefcbf661334efad');
+  assert.equal(sha('functions/api/logout.js'), '13f397ce2e3e3662ad7a422f09f5256c292ebd3a26a0424756fbe640bfd40141');
+  assert.equal(sha('functions/api/callback.js'), '4ac250a99864ed8d9cb852995fd867e0f8e49212f92477adfa96b69cfee7716f');
+  assert.equal(sha('members_card.enc'), '4a1c4c3e9af3dc7cb75a72b4993dce364a861739ee66411d8e436a0159f0a93f');
+  const encLine = index.split('\n').find((line) => line.startsWith('const ENC'));
+  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '425ddacc23c351bc24713ee737516f218d4b24af795ae2abd20114becca0c95a');
 });
 
 test('fixture file is synthetic and is not wired as a live fallback', () => {

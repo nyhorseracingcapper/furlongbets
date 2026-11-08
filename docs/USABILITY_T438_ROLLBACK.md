@@ -1,8 +1,8 @@
 # Usability t438 — release block and rollback
 
-Release id: `t438-usability-1`
+Release id: `t438-usability-2`
 
-This change is a staging implementation of the approved usability scope (orient, readiness, scratches and surface wording, three projected-order ovals, whole-field reading). It is not a release.
+This change keeps the existing live-card page and adds a small readiness note, previous and next, and the original three-across ovals. It is not a new page and it is not a release.
 
 ## Blocked until all of these are true
 

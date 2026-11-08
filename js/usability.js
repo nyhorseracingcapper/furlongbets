@@ -9,7 +9,7 @@
   'use strict';
 
   var RELEASE = {
-    version: 't438-usability-1',
+    version: 't438-usability-2',
     quoteFreshS: 30,
     statusFreshS: 150,
     pollMs: 3000,
@@ -146,21 +146,19 @@
         source = 'card roster';
         var stamp = h.scr_ts || h.scratched_at || null;
         label = 'Confirmed scratch · card roster · ' + (stamp ? formatEt(stamp) : 'time unknown');
-      } else if (q && q.dec != null && isFinite(Number(q.dec)) && Number(q.dec) <= 0) {
-        source = 'tote quote';
+      } else if (q && (q.scratch === true || q.scratched === true)) {
+        source = 'feed scratch flag';
         if (qState === 'current') {
           kind = 'confirmed';
-          label = 'Confirmed scratch · fresh tote quote at or below 0 · ' + (q.ts != null ? formatEt(q.ts) : 'time unknown');
-        } else if (qState === 'stale') {
-          kind = 'unconfirmed';
-          label = 'Stale tote quote at or below 0 (' + Math.round(age) + 's) · not a confirmed scratch';
-        } else if (qState === 'future') {
-          kind = 'unconfirmed';
-          label = 'Tote quote timestamp is in the future · not current · not a confirmed scratch';
+          label = 'Confirmed scratch · fresh feed scratch flag · ' + (q.ts != null ? formatEt(q.ts) : 'time unknown');
         } else {
           kind = 'unconfirmed';
-          label = 'Tote quote has no usable time · not a confirmed scratch';
+          label = 'Feed scratch flag is ' + qState + ' · not a confirmed scratch';
         }
+      } else if (q && q.dec != null && isFinite(Number(q.dec)) && Number(q.dec) <= 0) {
+        kind = 'unconfirmed';
+        source = 'tote quote without a scratch flag';
+        label = 'Tote quote is at or below 0. This feed has no scratch flag, so it is not a confirmed scratch.';
       } else if (!q || q.dec == null || !isFinite(Number(q.dec))) {
         kind = 'unknown-quote';
         source = 'no quote';
@@ -611,7 +609,7 @@
     return m;
   }
 
-  function ovalSvg(stage, paint, focusPgm) {
+  function ovalSvg(stage, paint, focusPgm, names) {
     var label = stage.spoken.toUpperCase();
     var short = stage.key;
     var parts = [];
@@ -621,7 +619,8 @@
       summary = stage.spoken + ' projected order unavailable. ' + stage.reason + '. No order was invented.';
     } else {
       summary = stage.spoken + ' projected order, schematic spacing, not a physical position. ' + stage.order.map(function (pgm, i) {
-        return (i + 1) + ': program ' + pgm;
+        var who = names && names[pgm] ? ' ' + names[pgm] : '';
+        return (i + 1) + ': program ' + pgm + who;
       }).join(', ');
     }
     parts.push('<title>' + esc(summary) + '</title>');
@@ -639,7 +638,8 @@
         var vis = rankVisual(short, i + 1);
         var focused = focusPgm != null && String(focusPgm) === String(pgm);
         var fs = String(pgm).length >= 3 ? 7.5 : (String(pgm).length >= 2 ? 8.5 : 11);
-        parts.push('<g class="fu-tok" data-pgm="' + esc(pgm) + '" data-rank="' + (i + 1) + '" tabindex="0" role="button" aria-label="Program ' + esc(pgm) + ', ' + stage.spoken + ' projected place ' + (i + 1) + '" onclick="fuFocusPgm(this.getAttribute(\'data-pgm\'))">');
+        var nm = names && names[pgm] ? names[pgm] : '';
+        parts.push('<g class="fu-tok" data-pgm="' + esc(pgm) + '" data-rank="' + (i + 1) + '" tabindex="0" role="button" aria-label="Program ' + esc(pgm) + (nm ? ' ' + esc(nm) : '') + ', ' + stage.spoken + ' projected place ' + (i + 1) + '" onclick="fuFocusPgm(this.getAttribute(\'data-pgm\'))">');
         if (focused) parts.push('<circle cx="' + pt.x.toFixed(3) + '" cy="' + pt.y.toFixed(3) + '" r="' + (vis.r + 4) + '" fill="none" stroke="#f6e7b4" stroke-width="2"></circle>');
         parts.push('<circle cx="' + pt.x.toFixed(3) + '" cy="' + pt.y.toFixed(3) + '" r="' + vis.r + '" fill="' + vis.fill + '" stroke="#0c1116" stroke-width="1.4"></circle>');
         parts.push('<text x="' + pt.x.toFixed(3) + '" y="' + (pt.y + 3.2).toFixed(3) + '" fill="' + vis.text + '" font-family="monospace" font-size="' + fs + '" font-weight="700" text-anchor="middle">' + esc(pgm) + '</text>');
@@ -777,22 +777,41 @@
     return new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }).format(d);
   }
 
+  function nameMap(meta) {
+    var names = {};
+    ((meta.race && meta.race.horses) || []).forEach(function (h) { names[String(h.pgm)] = h.horse || h.name || ''; });
+    return names;
+  }
+
+  function captureNotes(race) {
+    var notes = [];
+    if (race && Object.prototype.hasOwnProperty.call(race, 'nSCRATCHES')) {
+      notes.push('Card capture nSCRATCHES is ' + race.nSCRATCHES + '. That is not a live late-scratch clearance and not an MTO or AE clearance.');
+    }
+    var coded = [];
+    ((race && race.horses) || []).forEach(function (h) {
+      if (h.nAE != null && h.nAE !== '' && Number(h.nAE) !== 0) coded.push('#' + h.pgm + ' code ' + h.nAE);
+    });
+    if (coded.length) notes.push('Raw nAE codes (' + coded.join(', ') + ') are not confirmed starters and are not scratches.');
+    return notes;
+  }
+
   function ovalsHtml(meta) {
     var paint = meta.surface.paint;
+    var names = nameMap(meta);
     var blocks = meta.stages.stages.map(function (stage) {
-      var drawn = ovalSvg(stage, paint, meta.focusPgm);
-      return '<figure class="fu-stage"><figcaption>' + esc(stage.spoken) + '</figcaption>' + drawn.svg
-        + '<p class="fu-sum">Schematic spacing. Not a position on the track.</p></figure>';
+      var drawn = ovalSvg(stage, paint, meta.focusPgm, names);
+      return '<figure class="fu-stage"><figcaption>' + esc(stage.spoken) + '</figcaption>' + drawn.svg + '</figure>';
     });
     var sr = meta.stages.stages.map(function (stage) {
-      return ovalSvg(stage, paint, meta.focusPgm).summary;
+      return ovalSvg(stage, paint, meta.focusPgm, names).summary;
     }).join(' ');
     return '<section class="fu-ovals" aria-label="Three projected-order ovals" data-asset="' + esc(RELEASE.version) + '">'
-      + '<h2 class="fu-h">Projected order</h2>'
-      + '<p class="fu-note">First call, second call, and finish. Spacing is schematic. It is not a physical position, a margin, or a claim that the first-call leader is the finish leader. Rank colors repeat the reference map; the program number and the place number do not depend on color. Finish places 1 and 2 both use gold; place 1 is the larger token.</p>'
+      + '<div class="fu-ovalbar"><span class="fu-k">Projected order</span>'
+      + '<button type="button" class="mini-nav" id="ovalZoom" onclick="fuToggleOvalZoom()">Enlarge ovals</button></div>'
       + '<p class="sr-only">' + esc(sr) + '</p>'
-      + '<div class="fu-views">' + blocks.join('') + '</div>'
-      + '<p class="fu-note">' + (paint.known ? ('Track color follows the card surface ' + paint.name + '. It is not a live surface confirmation.') : 'Track is drawn neutral because the surface is not a known Dirt, Turf, or Synth value.') + '</p>'
+      + '<div class="views" id="ovalViews">' + blocks.join('') + '</div>'
+      + '<p class="fu-cap">Schematic spacing, same 26-unit original oval. Not a physical position and not a calibrated call.</p>'
       + '</section>';
   }
 
@@ -878,9 +897,36 @@
     return ovalsHtml(meta) + legendHtml(meta) + moneyHtml(meta) + signalsHtml(meta);
   }
 
+  function compactRaceHtml(meta) {
+    var horses = (meta.race && meta.race.horses) || [];
+    var roster = horses.map(function (h) {
+      var country = countryOf(h.horse || h.name || '');
+      return '#' + h.pgm + ' ' + (h.horse || h.name || 'Name unavailable') + (country ? ' Country ' + country : ' Country not in the name');
+    }).join(' · ');
+    var cov = meta.coverage;
+    var pill = pillModel(meta);
+    var notes = []
+      .concat(captureNotes(meta.race))
+      .concat([
+        meta.date.state === 'historical' ? 'Card date is not today in America/New_York.' : ('Card date ' + (meta.date.key || 'unknown') + ' · ' + meta.date.state + '.'),
+        meta.surface.label,
+        'Quotes ' + cov.current + ' current, ' + cov.stale + ' stale, ' + cov.future + ' future, ' + cov.unknown + ' missing. A missing or stale quote is not a scratch.',
+        'Status ' + meta.statusTime + '. Quote window 30s. Status window 150s. Poll 3s.',
+        'Quote feed ' + meta.quoteFeed + '. Status feed ' + meta.statusFeed + '.',
+        pill.text
+      ]);
+    if (meta.coupling && meta.coupling.groups.length) notes.push(meta.coupling.note);
+    return '<div class="fu-inline" data-asset="' + esc(RELEASE.version) + '">'
+      + (meta.mode === 'fixture' ? '<p class="fu-cap">Synthetic fixture. Not the live card and not a forecast.</p>' : '')
+      + '<details class="fu-fold"><summary>Readiness</summary><p>' + esc(notes.join(' ')) + '</p></details>'
+      + ovalsHtml(meta)
+      + '<p class="fu-roster">' + esc(roster) + '</p>'
+      + '</div>';
+  }
+
   function raceUsabilityHtml(input) {
     var meta = input && input.classified ? input : buildMeta(input);
-    return '<div class="fu-root" data-asset="' + esc(RELEASE.version) + '">' + bannerHtml(meta) + trustHtml(meta) + restHtml(meta) + '</div>';
+    return compactRaceHtml(meta);
   }
 
   function orientMove(races, sel, action) {
@@ -962,6 +1008,8 @@
     ovalsHtml: ovalsHtml,
     bannerHtml: bannerHtml,
     restHtml: restHtml,
+    compactRaceHtml: compactRaceHtml,
+    captureNotes: captureNotes,
     raceUsabilityHtml: raceUsabilityHtml,
     orientMove: orientMove,
     neighbors: neighbors,

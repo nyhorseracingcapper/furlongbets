@@ -26,7 +26,7 @@
     horse('12', 'Twelve Runner', { p_raw: 0.04 }),
     horse('13', 'Thirteen Runner', { p_raw: 0.04 }),
     horse('14', 'Card Scratch Example', { p_raw: 0.05, scr: true, scr_ts: Date.parse('2026-11-07T14:05:00Z') }),
-    horse('15', 'Fifteen Runner', { p_raw: 0.05 })
+    horse('15', 'Fifteen Runner', { p_raw: 0.05, nAE: 1 })
   ];
 
   var field20 = [];
@@ -50,7 +50,7 @@
     mmdd: '2026-11-07',
     source_version: null,
     races: [
-      { trk: 'FIXT', race: 1, surf: 'Dirt', dist: '6f', post: '3:15 PM', horses: field16, stage_orders: { first: orderA, second: orderB, finish: orderC } },
+      { trk: 'FIXT', race: 1, surf: 'Dirt', dist: '6f', post: '3:15 PM', nSCRATCHES: 0, horses: field16, stage_orders: { first: orderA, second: orderB, finish: orderC } },
       { trk: 'FIXT', race: 2, surf: 'Turf', dist: '8f', post: '3:45 PM', horses: field20, stage_orders: { first: pgm20, second: rot(pgm20, 3), finish: rot(pgm20, 7) } },
       { trk: 'FIXT', race: 3, surf: 'Off turf', dist: '5f', post: '4:10 PM', horses: fieldPlain },
       { trk: 'FIXT', race: 4, surf: '', dist: '1m', post: '4:40 PM', horses: partialHorses, stage_orders: { first: partialOrder, second: partialOrder, finish: partialOrder } }
