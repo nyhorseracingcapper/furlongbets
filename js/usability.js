@@ -9,7 +9,7 @@
   'use strict';
 
   var RELEASE = {
-    version: 't438-usability-3',
+    version: 't438-usability-4',
     quoteFreshS: 30,
     statusFreshS: 150,
     pollMs: 3000,
@@ -582,6 +582,48 @@
     return { fill: COLORS.gray, text: COLORS.white, r: 9.5 };
   }
 
+  function rosterKey(trk, race, pgm) {
+    return String(trk) + '|' + String(race) + '|' + String(pgm);
+  }
+
+  function raceRoster(races, trk, race) {
+    var found = (races || []).filter(function (r) { return r && r.trk === trk && String(r.race) === String(race); });
+    if (found.length !== 1) return { ok: false, horses: [] };
+    return {
+      ok: true,
+      key: String(trk) + '|' + String(race),
+      horses: found[0].horses.map(function (h) {
+        return { pgm: String(h.pgm), horse: h.horse || h.name || '', quoteKey: rosterKey(trk, race, h.pgm) };
+      })
+    };
+  }
+
+  function statusRead(input) {
+    input = input || {};
+    if (!input.hasRow) return { kind: 'absent', closed: false, reason: 'no status row' };
+    var ageState = timeState(input.ageSec, RELEASE.statusFreshS);
+    if (ageState !== 'current') {
+      return { kind: 'stale', closed: false, ageState: ageState, reason: ageState === 'future' ? 'status timestamp is in the future' : 'status is missing a fresh time' };
+    }
+    var raw = String(input.status || '').toLowerCase();
+    var stripped = raw.replace(/\boff[\s-]*turf\b/g, ' ');
+    var unofficial = /\bunofficial\b/.test(stripped);
+    var body = stripped.replace(/\bunofficial\b/g, ' ');
+    var fin = /\b(official|final|results?|paid|complete)\b/.test(body);
+    var cancel = /\b(cancel(?:ed|led)?)\b/.test(body);
+    var closed = /\b(off|closed|close|locked|stopped)\b/.test(body);
+    var poolsClosed = fin || cancel || closed || unofficial;
+    var mtp = input.mtp == null || input.mtp === '' ? null : Number(input.mtp);
+    var mtpKnown = mtp != null && isFinite(mtp);
+    if (poolsClosed && mtpKnown && mtp > 0) {
+      return { kind: 'conflict', closed: false, reason: 'fresh status says closed while MTP is still positive' };
+    }
+    if (fin || unofficial) return { kind: 'closed', closed: true, k: 'final', label: 'FINAL', reason: 'fresh final status' };
+    if (cancel) return { kind: 'closed', closed: true, k: 'canceled', label: 'CANCELED', reason: 'fresh canceled status' };
+    if (closed) return { kind: 'closed', closed: true, k: 'off', label: 'OFF (POOLS CLOSED)', reason: 'fresh closed status' };
+    return { kind: 'open', closed: false, reason: 'fresh open status' };
+  }
+
   function countryOf(name) {
     var m = String(name || '').match(/\(([A-Z]{2,3})\)\s*$/);
     return m ? m[1] : null;
@@ -1069,6 +1111,9 @@
     feedRaceDate: feedRaceDate,
     etStamp: etStamp,
     cardDateState: cardDateState,
+    rosterKey: rosterKey,
+    raceRoster: raceRoster,
+    statusRead: statusRead,
     timeState: timeState,
     classifyRunners: classifyRunners,
     engineRaw: engineRaw,

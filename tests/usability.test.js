@@ -8,12 +8,12 @@ const root = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('release constants match the existing windows and name the rollback', () => {
-  assert.equal(FU.RELEASE.version, 't438-usability-3');
+  assert.equal(FU.RELEASE.version, 't438-usability-4');
   assert.equal(FU.RELEASE.quoteFreshS, 30);
   assert.equal(FU.RELEASE.statusFreshS, 150);
   assert.equal(FU.RELEASE.pollMs, 3000);
   assert.ok(FU.RELEASE.rollback.length >= 4);
-  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-3/);
+  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-4/);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /revert/i);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /Do not merge/);
 });
@@ -360,10 +360,12 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('setInterval(fetchStatus,3000)');
   has('FRESH_QUOTE_S=30');
   has('STALE_STATUS_S=150');
-  has('js/usability.js?v=t438-usability-3');
-  has('css/usability.css?v=t438-usability-3');
+  has('js/usability.js?v=t438-usability-4');
+  has('css/usability.css?v=t438-usability-4');
   has('race_date=eq."+DATE');
   has('FU.classifyRunners');
+  has('FU.statusRead');
+  assert.equal(index.includes('OFFRE'), false);
   has('function onClockTick');
   has('visibilitychange');
   has('function tryUnlock');
@@ -406,6 +408,107 @@ test('live_quote race_date=eq.1107 matches real MMDD rows and ISO does not', asy
   const isoRows = await iso.json();
   assert.ok(Array.isArray(isoRows));
   assert.equal(isoRows.length, 0);
+});
+
+test('status closure requires a fresh closed read and never follows the quote or the post clock', () => {
+  const staleOff = FU.statusRead({ hasRow: true, status: 'off', ageSec: 633, mtp: 0 });
+  assert.equal(staleOff.closed, false);
+  assert.equal(staleOff.kind, 'stale');
+  const olderOff = FU.statusRead({ hasRow: true, status: 'closed', ageSec: 845, mtp: 0 });
+  assert.equal(olderOff.closed, false);
+  const futureOff = FU.statusRead({ hasRow: true, status: 'off', ageSec: -5, mtp: 0 });
+  assert.equal(futureOff.closed, false);
+  assert.equal(futureOff.kind, 'stale');
+  const missing = FU.statusRead({ hasRow: false, status: 'off', ageSec: 0, mtp: 0 });
+  assert.equal(missing.closed, false);
+  const turf = FU.statusRead({ hasRow: true, status: 'off turf', ageSec: 10, mtp: 4 });
+  assert.equal(turf.closed, false);
+  assert.equal(turf.kind, 'open');
+  const freshOff = FU.statusRead({ hasRow: true, status: 'off', ageSec: 12, mtp: 0 });
+  assert.equal(freshOff.closed, true);
+  assert.equal(freshOff.label, 'OFF (POOLS CLOSED)');
+  const freshNull = FU.statusRead({ hasRow: true, status: 'closed', ageSec: 12, mtp: null });
+  assert.equal(freshNull.closed, true);
+  const conflict = FU.statusRead({ hasRow: true, status: 'off', ageSec: 12, mtp: 3 });
+  assert.equal(conflict.closed, false);
+  assert.equal(conflict.kind, 'conflict');
+  const finalRow = FU.statusRead({ hasRow: true, status: 'official', ageSec: 20, mtp: 0 });
+  assert.equal(finalRow.k, 'final');
+  const unofficial = FU.statusRead({ hasRow: true, status: 'unofficial', ageSec: 20, mtp: 0 });
+  assert.equal(unofficial.k, 'final');
+  const canceled = FU.statusRead({ hasRow: true, status: 'canceled', ageSec: 20, mtp: 0 });
+  assert.equal(canceled.k, 'canceled');
+  const quoteCannotClose = FU.statusRead({ hasRow: true, status: 'up', ageSec: 10, mtp: 2, dec: 0, scratch: true });
+  assert.equal(quoteCannotClose.closed, false);
+  assert.equal(quoteCannotClose.kind, 'open');
+});
+
+test('selected race roster keeps program identity and does not alias the track', () => {
+  const races = [
+    { trk: 'BEL', race: 1, horses: [{ pgm: '1', horse: 'Alpha' }, { pgm: '1A', horse: 'Beta' }, { pgm: 10, horse: 'Ten' }] },
+    { trk: 'BEL', race: 2, horses: [{ pgm: '2', horse: 'Other' }] },
+    { trk: 'BAQ', race: 1, horses: [{ pgm: '1', horse: 'Not the same race' }] }
+  ];
+  const got = FU.raceRoster(races, 'BEL', 1);
+  assert.equal(got.ok, true);
+  assert.equal(got.key, 'BEL|1');
+  assert.deepEqual(got.horses.map((h) => h.pgm), ['1', '1A', '10']);
+  assert.deepEqual(got.horses.map((h) => h.quoteKey), ['BEL|1|1', 'BEL|1|1A', 'BEL|1|10']);
+  assert.equal(got.horses.some((h) => h.horse === 'Other' || h.horse === 'Not the same race'), false);
+  assert.equal(FU.rosterKey('BEL', 1, 1), FU.rosterKey('BEL', '1', '1'));
+  assert.notEqual(FU.rosterKey('BEL', 1, '1A'), FU.rosterKey('BEL', 1, '1'));
+  assert.equal(FU.rosterKey('BEL', 1, '1').startsWith('BEL|'), true);
+  assert.equal(FU.raceRoster(races, 'BAQ', 1).horses[0].quoteKey, 'BAQ|1|1');
+  assert.equal(FU.raceRoster(races, 'BEL', 9).ok, false);
+  assert.equal(FU.feedRaceDate('1108').query, 'race_date=eq.1108');
+});
+
+test('a closed status freezes the prior call and any later non-closed read replaces it', () => {
+  const index = read('index.html');
+  const block = index.slice(index.indexOf('function finalize'), index.indexOf('function grpCount'));
+  const closedAt = block.indexOf('if(isClosedState(rs.k))');
+  const assignAt = block.indexOf('FROZEN[V.rk]=V');
+  assert.ok(closedAt >= 0 && assignAt > closedAt);
+  assert.equal(block.slice(closedAt, assignAt).includes('FROZEN[V.rk]=V'), false);
+  assert.match(index, /function raceState[\s\S]*FU\.statusRead/);
+  assert.equal(index.includes('OFF (POOLS CLOSED)'), false);
+  const schedule = index.slice(index.indexOf('function raceState'), index.indexOf('function isActiveState'));
+  assert.equal(schedule.includes("'OFF"), false);
+});
+
+test('raceState keeps a stale off row on the schedule and closes only a fresh closed read', () => {
+  const vm = require('node:vm');
+  const html = read('index.html');
+  const script = html.slice(html.indexOf('<script>\n') + 8, html.lastIndexOf('</script>'));
+  const body = script.slice(script.indexOf('const K='), script.indexOf('function mtpSec'));
+  const now = Date.parse('2026-11-08T18:00:00Z');
+  const context = { FU, STAT: {}, window: { __NOW_MS: now }, Date, Intl, Math, Number, String, isFinite };
+  vm.createContext(context);
+  vm.runInContext(body, context);
+  const post = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(now + 120000));
+  function row(status, ageSec, mtp) {
+    context.STAT = { 'LRL|1': { status: status, ts: now - ageSec * 1000, mtp: mtp } };
+    return context.raceState({ trk: 'LRL', race: 1, post: post });
+  }
+  const stale = row('off', 845, 0);
+  assert.equal(stale.k, 'sched');
+  assert.match(stale.label, /SCHED/);
+  const fresh = row('off', 12, 0);
+  assert.equal(fresh.k, 'off');
+  assert.equal(fresh.label, 'OFF (POOLS CLOSED)');
+  const conflict = row('off', 12, 3);
+  assert.equal(conflict.k, 'wait');
+  assert.match(conflict.label, /WAIT/);
+  const open = row('up', 12, 4);
+  assert.equal(open.k, 'up');
+  assert.equal(open.mtp, 4);
+  const turf = row('off turf', 12, 4);
+  assert.equal(turf.k, 'up');
+  context.STAT = {};
+  const elapsed = context.raceState({ trk: 'LRL', race: 1, post: new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(now - 40 * 60000)) });
+  assert.equal(elapsed.k, 'past');
+  const quote = row('up', 12, 2);
+  assert.notEqual(quote.k, 'off');
 });
 
 test('fixture file is synthetic and is not wired as a live fallback', () => {
