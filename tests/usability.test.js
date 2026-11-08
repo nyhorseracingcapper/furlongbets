@@ -367,7 +367,8 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('function onClockTick');
   has('visibilitychange');
   has('function tryUnlock');
-  has('F/trAKbjK/yAR92r1Um/Iw==');
+  has('id="carddate">11-08-2026<');
+  assert.equal(index.includes('id="carddate">11-07-2026<'), false);
   assert.equal(index.includes('off the tote (late scratch)'), false);
   assert.equal(index.includes('Supplemental runner board'), false);
   assert.equal(index.includes('International Velvet'), false);
@@ -382,7 +383,10 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   assert.equal(sha('functions/api/callback.js'), '4ac250a99864ed8d9cb852995fd867e0f8e49212f92477adfa96b69cfee7716f');
   assert.equal(sha('members_card.enc'), '4a1c4c3e9af3dc7cb75a72b4993dce364a861739ee66411d8e436a0159f0a93f');
   const encLine = index.split('\n').find((line) => line.startsWith('const ENC'));
-  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '425ddacc23c351bc24713ee737516f218d4b24af795ae2abd20114becca0c95a');
+  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '8b006b5d47792bc140e4077c602e228832a7949cfaba2f0f474dce970f459624');
+  const encObj = JSON.parse(encLine.slice(encLine.indexOf('{'), encLine.lastIndexOf('}') + 1));
+  assert.equal(encObj.n, 200000);
+  assert.deepEqual(Object.keys(encObj).sort(), ['c', 'i', 'n', 's']);
 });
 
 test('live_quote race_date=eq.1107 matches real MMDD rows and ISO does not', async () => {
