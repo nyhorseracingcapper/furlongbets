@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>FURLONG usability fixture — not a live card</title>
+<link rel="stylesheet" href="../css/usability.css">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #080c14; color: #e7eef6; font-family: system-ui, Segoe UI, Roboto, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 12px 14px 48px; }
+  header { position: sticky; top: 0; background: #080c14; border-bottom: 1px solid #1b2636; padding: 10px 0; z-index: 2; }
+  .hrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .brand { font-weight: 800; font-size: 18px; }
+  .brand b { color: #34d39b; }
+  .live { margin-left: auto; display: inline-flex; gap: 6px; align-items: center; font-size: 14px; color: #c5d4e6; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .fu-rail { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 8px; }
+  .fu-rpill { min-height: 44px; min-width: 74px; font: inherit; font-weight: 800; color: #e7eef6; background: #111a28; border: 1px solid #28384f; border-radius: 12px; padding: 8px 12px; }
+  .fu-rpill.on { border-color: #f6e7b4; color: #f6e7b4; }
+  .qa-harness { margin-top: 28px; padding-top: 12px; border-top: 1px solid #28384f; }
+  .qa-harness button { min-height: 44px; margin: 4px; font: inherit; color: #e7eef6; background: #15202f; border: 1px solid #8aa4c4; border-radius: 8px; padding: 8px 10px; }
+  #qa-log { color: #c5d4e6; font-size: 14px; overflow-wrap: anywhere; }
+  .nextoff { min-height: 44px; display: inline-flex; align-items: center; margin: 8px 0; padding: 8px 12px; border-radius: 12px; border: 1px solid #8a6a2c; background: #2a2410; color: #f6e7b4; font: inherit; font-weight: 800; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="hrow">
+  <div class="brand">FUR<b>LONG</b> · Card fixture</div>
+  <span class="live" id="feedpill"><span class="dot unk" id="feeddot"></span><span id="status">fixture</span></span>
+</div></header>
+<div id="orient"></div>
+<p class="fu-note">Optional shortcut. It does not run by itself and it does not move you when the board refreshes.</p>
+<button type="button" class="nextoff" id="nextOpenBtn" onclick="jumpNextOpen()">Next open race</button>
+<div id="rail"></div>
+<div id="usability"></div>
+<section class="qa-harness" aria-label="Fixture controls">
+  <h2 class="fu-h">Fixture controls</h2>
+  <p>These buttons drive a fake clock. They do not read furlongbets.com and they do not prove the live card is healthy.</p>
+  <button type="button" id="sc-fresh">Simulated fresh feeds</button>
+  <button type="button" id="sc-fail">Both feeds fail</button>
+  <button type="button" id="sc-partial">Partial quotes</button>
+  <button type="button" id="sc-future">Future status time</button>
+  <button type="button" id="sc-resume">Background resume +45s</button>
+  <button type="button" id="sc-midnight">Midnight ET</button>
+  <button type="button" id="sc-cycles">20 refresh cycles</button>
+  <p id="qa-log"></p>
+</section>
+</div>
+<script src="../js/usability.js"></script>
+<script src="fixture-card.js"></script>
+<script src="fixture-page.js"></script>
+</body>
+</html>
