@@ -8,12 +8,12 @@ const root = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('release constants match the existing windows and name the rollback', () => {
-  assert.equal(FU.RELEASE.version, 't438-usability-2');
+  assert.equal(FU.RELEASE.version, 't438-usability-3');
   assert.equal(FU.RELEASE.quoteFreshS, 30);
   assert.equal(FU.RELEASE.statusFreshS, 150);
   assert.equal(FU.RELEASE.pollMs, 3000);
   assert.ok(FU.RELEASE.rollback.length >= 4);
-  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-2/);
+  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-3/);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /revert/i);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /Do not merge/);
 });
@@ -24,16 +24,40 @@ test('America/New_York timestamps use an ET suffix', () => {
   assert.equal(FU.etDateKey(Date.parse('2026-11-08T05:00:01Z')), '2026-11-08');
 });
 
-test('card date is today, historical, or unknown — unknown is not current', () => {
-  const morning = Date.parse('2026-11-07T16:00:00Z');
-  assert.equal(FU.cardDateState('2026-11-07', morning).state, 'today');
-  assert.equal(FU.cardDateState('11-07-2026', morning).state, 'today');
-  assert.equal(FU.cardDateState('11/07/2026', morning).state, 'today');
-  const after = Date.parse('2026-11-08T05:00:01Z');
-  assert.equal(FU.cardDateState('2026-11-07', after).state, 'historical');
-  assert.equal(FU.cardDateState('not-a-date', morning).state, 'unknown');
-  assert.notEqual(FU.cardDateState('', morning).state, 'current');
-  assert.notEqual(FU.cardDateState('not-a-date', morning).state, 'today');
+test('feed dates are MMDD, with year only from the card, and invalid dates fail closed', () => {
+  const nov8Evening = Date.parse('2026-11-09T04:30:00Z');
+  const nov9Midnight = Date.parse('2026-11-09T05:01:00Z');
+  const newYear = Date.parse('2027-01-01T05:01:00Z');
+  const nov8 = { mmdd: '1108', card_year: 2026, source_captured_at: '2026-11-08T00:14:40-05:00' };
+  assert.equal(FU.feedRaceDate('1107').query, 'race_date=eq.1107');
+  assert.equal(FU.feedRaceDate('1108').query, 'race_date=eq.1108');
+  assert.equal(FU.feedRaceDate('1108').feedKey, '1108');
+  assert.equal(FU.feedRaceDate('2026-11-08').ok, false);
+  assert.equal(FU.feedRaceDate('11-08-2026').ok, false);
+  assert.equal(FU.feedRaceDate('0000').ok, false);
+  assert.equal(FU.feedRaceDate('1132').ok, false);
+  assert.equal(FU.feedRaceDate('110').ok, false);
+  const same = FU.cardDateState(nov8, nov8Evening);
+  assert.equal(same.state, 'same-day');
+  assert.equal(same.calendar, '2026-11-08');
+  assert.equal(same.feedKey, '1108');
+  assert.match(same.capture, /2026-11-08 00:14:40 ET/);
+  assert.equal(FU.cardDateState(nov8, nov9Midnight).state, 'historical');
+  assert.equal(FU.cardDateState({ mmdd: '1231', card_year: 2026 }, newYear).calendar, '2026-12-31');
+  assert.equal(FU.cardDateState({ mmdd: '1231', card_year: 2026 }, newYear).state, 'historical');
+  assert.equal(FU.cardDateState({ mmdd: '0101', card_year: 2027 }, newYear).state, 'same-day');
+  assert.equal(FU.cardDateState({ mmdd: '0229', card_year: 2026 }, nov8Evening).state, 'invalid');
+  assert.equal(FU.cardDateState({ mmdd: '0229', card_year: 2024 }, Date.parse('2024-02-29T17:00:00Z')).state, 'same-day');
+  const legacy = FU.cardDateState('1107', nov8Evening);
+  assert.equal(legacy.state, 'feed-only');
+  assert.equal(legacy.feedKey, '1107');
+  assert.equal(legacy.calendar, null);
+  assert.notEqual(legacy.state, 'same-day');
+  assert.equal(FU.cardDateState({ mmdd: '1108', source_captured_at: '2026-11-08T00:14:40' }, nov8Evening).state, 'invalid');
+  assert.equal(FU.cardDateState({ mmdd: '1107', card_year: 2026, source_captured_at: '2026-11-08T00:14:40-05:00' }, nov8Evening).state, 'invalid');
+  assert.equal(FU.cardDateState({ mmdd: '1108', card_year: 2026, nSCRATCHES: 0 }, nov8Evening).state, 'same-day');
+  assert.equal(FU.actionGate({ dateState: 'invalid', quoteState: 'current', statusState: 'current', wageringLive: true }).allowed, false);
+  assert.equal(FU.actionGate({ dateState: 'feed-only', quoteState: 'current', statusState: 'current', wageringLive: true }).allowed, true);
 });
 
 test('quote and status time states, including future timestamps', () => {
@@ -240,7 +264,7 @@ test('stage orders keep every starter and fail closed when the source is incompl
     assert.ok(s.order.includes('11'));
   });
   const html = FU.raceUsabilityHtml(FU.buildMeta({
-    race, quotes: {}, now: Date.parse('2026-11-07T20:00:00Z'), card: { mmdd: '2026-11-07' }, mode: 'fixture', feed: {}
+    race, quotes: {}, now: Date.parse('2026-11-07T20:00:00Z'), card: { mmdd: '1107', card_year: 2026 }, mode: 'fixture', feed: {}
   }));
   assert.equal((html.match(/data-stage="/g) || []).length, 3);
   assert.ok(html.includes('>1A<'));
@@ -251,7 +275,7 @@ test('stage orders keep every starter and fail closed when the source is incompl
   const bare = FU.stageModel({ horses, surf: 'Dirt' });
   assert.ok(bare.stages.every((s) => !s.ok));
   const bareHtml = FU.ovalsHtml(FU.buildMeta({
-    race: { horses, surf: 'Dirt' }, quotes: {}, now: Date.parse('2026-11-07T20:00:00Z'), card: { mmdd: '2026-11-07' }, mode: 'card'
+    race: { horses, surf: 'Dirt' }, quotes: {}, now: Date.parse('2026-11-07T20:00:00Z'), card: { mmdd: '1107', card_year: 2026 }, mode: 'card'
   }));
   assert.equal((bareHtml.match(/data-rank=/g) || []).length, 0);
   assert.match(bareHtml, /Order unavailable/);
@@ -306,7 +330,7 @@ test('names and markup stay escaped, and the pill does not call a fixture curren
   };
   const now = Date.parse('2026-11-07T20:00:00Z');
   const meta = FU.buildMeta({
-    race, now, card: { mmdd: '2026-11-07' }, mode: 'fixture',
+    race, now, card: { mmdd: '1107', card_year: 2026 }, mode: 'fixture',
     quotes: { '11': { dec: 3, age: 4, ts: now - 4000 } },
     status: { age: 4, ts: now - 4000, status: 'open' },
     feed: { quote: { okAt: now, seen: true, failing: false }, status: { okAt: now, seen: true, failing: false } }
@@ -336,8 +360,9 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('setInterval(fetchStatus,3000)');
   has('FRESH_QUOTE_S=30');
   has('STALE_STATUS_S=150');
-  has('js/usability.js?v=t438-usability-2');
-  has('css/usability.css?v=t438-usability-2');
+  has('js/usability.js?v=t438-usability-3');
+  has('css/usability.css?v=t438-usability-3');
+  has('race_date=eq."+DATE');
   has('FU.classifyRunners');
   has('function onClockTick');
   has('visibilitychange');
@@ -358,6 +383,25 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   assert.equal(sha('members_card.enc'), '4a1c4c3e9af3dc7cb75a72b4993dce364a861739ee66411d8e436a0159f0a93f');
   const encLine = index.split('\n').find((line) => line.startsWith('const ENC'));
   assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '425ddacc23c351bc24713ee737516f218d4b24af795ae2abd20114becca0c95a');
+});
+
+test('live_quote race_date=eq.1107 matches real MMDD rows and ISO does not', async () => {
+  const index = read('index.html');
+  const supa = index.match(/const SUPA="([^"]+)"/)[1];
+  const key = index.match(/const KEY="([^"]+)"/)[1];
+  assert.equal(FU.feedRaceDate('1107').query, 'race_date=eq.1107');
+  assert.equal(FU.feedRaceDate('1108').query, 'race_date=eq.1108');
+  const headers = { apikey: key, Authorization: 'Bearer ' + key, Accept: 'application/json' };
+  const got = await fetch(supa + '/rest/v1/live_quote?' + FU.feedRaceDate('1107').query + '&select=race_date&limit=5', { headers });
+  assert.equal(got.status, 200);
+  const rows = await got.json();
+  assert.ok(Array.isArray(rows) && rows.length > 0);
+  rows.forEach((row) => assert.equal(row.race_date, '1107'));
+  const iso = await fetch(supa + '/rest/v1/live_quote?race_date=eq.2026-11-07&select=race_date&limit=3', { headers });
+  assert.equal(iso.status, 200);
+  const isoRows = await iso.json();
+  assert.ok(Array.isArray(isoRows));
+  assert.equal(isoRows.length, 0);
 });
 
 test('fixture file is synthetic and is not wired as a live fallback', () => {

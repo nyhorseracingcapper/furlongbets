@@ -9,7 +9,7 @@
   'use strict';
 
   var RELEASE = {
-    version: 't438-usability-2',
+    version: 't438-usability-3',
     quoteFreshS: 30,
     statusFreshS: 150,
     pollMs: 3000,
@@ -97,24 +97,107 @@
     return g.year + '-' + g.month + '-' + g.day;
   }
 
-  function parseCardDate(raw) {
-    if (raw == null) return null;
-    var s = String(raw).trim();
-    var m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
-    if (m) return m[1] + '-' + m[2] + '-' + m[3];
-    m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})/);
-    if (m) return m[1] + '-' + m[2] + '-' + m[3];
-    m = s.match(/^(\d{1,2})[-\/](\d{1,2})[-\/](\d{4})/);
-    if (m) return m[3] + '-' + String(m[1]).padStart(2, '0') + '-' + String(m[2]).padStart(2, '0');
-    return null;
+  var MONTH_DAYS = [0, 31, 29, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+  function pad2(n) { return String(n).padStart(2, '0'); }
+
+  function isRealYmd(year, month, day) {
+    if (!Number.isInteger(year) || year < 2000 || year > 2100) return false;
+    if (month < 1 || month > 12 || day < 1) return false;
+    var dt = new Date(Date.UTC(year, month - 1, day));
+    return dt.getUTCFullYear() === year && dt.getUTCMonth() === month - 1 && dt.getUTCDate() === day;
   }
 
-  function cardDateState(raw, now) {
-    var key = parseCardDate(raw);
-    var today = etDateKey(now);
-    if (!key) return { state: 'unknown', key: null, today: today, raw: raw == null ? '' : String(raw) };
-    if (key !== today) return { state: 'historical', key: key, today: today, raw: String(raw) };
-    return { state: 'today', key: key, today: today, raw: String(raw) };
+  function feedRaceDate(raw) {
+    var s = raw == null ? '' : String(raw).trim();
+    if (!/^\d{4}$/.test(s)) return { ok: false, feedKey: null, query: null, reason: 'feed date must be MMDD' };
+    var month = Number(s.slice(0, 2));
+    var day = Number(s.slice(2, 4));
+    if (month < 1 || month > 12 || day < 1 || day > MONTH_DAYS[month]) {
+      return { ok: false, feedKey: null, query: null, reason: 'feed date is not a real month and day' };
+    }
+    return { ok: true, feedKey: s, query: 'race_date=eq.' + s, month: month, day: day, reason: '' };
+  }
+
+  function etStamp(ms) {
+    var parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York',
+      year: 'numeric', month: '2-digit', day: '2-digit',
+      hour: '2-digit', minute: '2-digit', second: '2-digit',
+      hourCycle: 'h23'
+    }).formatToParts(new Date(ms));
+    var g = {};
+    parts.forEach(function (p) { if (p.type !== 'literal') g[p.type] = p.value; });
+    return {
+      year: Number(g.year),
+      month: Number(g.month),
+      day: Number(g.day),
+      iso: g.year + '-' + g.month + '-' + g.day,
+      mmdd: g.month + g.day,
+      clock: g.hour + ':' + g.minute + ':' + g.second
+    };
+  }
+
+  function parseCapture(raw) {
+    if (raw == null || raw === '') return { ok: false, reason: 'missing' };
+    var s = String(raw).trim();
+    if (!/(Z|[+-]\d{2}:\d{2})$/.test(s)) return { ok: false, reason: 'capture time needs an explicit offset' };
+    var ms = Date.parse(s);
+    if (!isFinite(ms)) return { ok: false, reason: 'capture time is not a timestamp' };
+    var et = etStamp(ms);
+    return { ok: true, ms: ms, et: et, reason: '' };
+  }
+
+  function cardDateState(input, now) {
+    var card = (input && typeof input === 'object') ? input : { mmdd: input };
+    var today = etStamp(now);
+    var raw = card.mmdd == null ? '' : String(card.mmdd);
+    var feed = feedRaceDate(card.mmdd);
+    var base = { feedKey: feed.feedKey, query: feed.query, today: today.iso, todayMmdd: today.mmdd, raw: raw, calendar: null, capture: null };
+    if (!feed.ok) {
+      return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: feed.reason });
+    }
+    var year = null;
+    var yearSource = null;
+    if (card.card_year != null && card.card_year !== '') {
+      year = Number(card.card_year);
+      if (!Number.isInteger(year)) {
+        return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: 'card_year is not an integer' });
+      }
+      yearSource = 'card_year';
+    }
+    if (card.source_captured_at != null && card.source_captured_at !== '') {
+      var cap = parseCapture(card.source_captured_at);
+      if (!cap.ok) return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: cap.reason });
+      if (cap.et.mmdd !== feed.feedKey) {
+        return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: 'source capture is not the feed date' });
+      }
+      if (year != null && cap.et.year !== year) {
+        return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: 'card_year does not match the source capture' });
+      }
+      year = cap.et.year;
+      yearSource = yearSource ? 'card_year+source_captured_at' : 'source_captured_at';
+      base.capture = cap.et.iso + ' ' + cap.et.clock + ' ET';
+    }
+    if (year == null) {
+      return Object.assign(base, {
+        state: 'feed-only',
+        key: null,
+        label: 'feed ' + feed.feedKey,
+        reason: 'calendar year is not in this card'
+      });
+    }
+    if (!isRealYmd(year, feed.month, feed.day)) {
+      return Object.assign(base, { state: 'invalid', key: null, label: 'card date invalid', reason: 'month, day, and year are not a real calendar day' });
+    }
+    var iso = year + '-' + pad2(feed.month) + '-' + pad2(feed.day);
+    base.calendar = iso;
+    base.key = iso;
+    base.yearSource = yearSource;
+    var label = iso + ' · feed ' + feed.feedKey;
+    if (base.capture) label += ' · captured ' + base.capture;
+    if (iso === today.iso) return Object.assign(base, { state: 'same-day', label: label, reason: '' });
+    return Object.assign(base, { state: 'historical', label: label, reason: 'explicit calendar day is not this Eastern day' });
   }
 
   function timeState(age, freshLimit) {
@@ -265,7 +348,8 @@
   function actionGate(flags) {
     flags = flags || {};
     if (flags.dateState === 'historical') return { allowed: false, reason: 'historical card date in America/New_York' };
-    if (flags.dateState !== 'today') return { allowed: false, reason: 'card date unknown' };
+    if (flags.dateState === 'invalid' || flags.dateState === 'unknown') return { allowed: false, reason: 'card date invalid' };
+    if (flags.dateState !== 'same-day' && flags.dateState !== 'feed-only' && flags.dateState !== 'today') return { allowed: false, reason: 'card date unknown' };
     if (flags.quoteState === 'future') return { allowed: false, reason: 'quote timestamp in the future' };
     if (flags.quoteState === 'stale') return { allowed: false, reason: 'quote older than 30s' };
     if (flags.quoteState !== 'current') return { allowed: false, reason: 'quote missing or unknown' };
@@ -655,7 +739,7 @@
     var race = input.race || { horses: [] };
     var now = input.now;
     var card = input.card || {};
-    var date = cardDateState(card.mmdd != null ? card.mmdd : input.cardDate, now);
+    var date = cardDateState(card && card.mmdd != null ? card : { mmdd: input.cardDate }, now);
     var classified = classifyRunners(race.horses || [], input.quotes || {}, now);
     var cov = coverage(classified.rows);
     var feed = cloneFeed(input.feed);
@@ -722,6 +806,7 @@
 
   function pillModel(meta) {
     var prefix = meta.mode === 'fixture' ? 'FIXTURE SIMULATION · ' : '';
+    if (meta.date.state === 'invalid' || meta.date.state === 'unknown') return { cls: 'unk', text: prefix + 'unknown · card date invalid' };
     if (meta.date.state === 'historical') return { cls: 'hist', text: prefix + 'historical · card date is not today in America/New_York' };
     if (meta.quoteFeed === 'disconnected' || meta.statusFeed === 'disconnected') return { cls: 'down', text: prefix + 'disconnected · last good data kept · not a live connection' };
     if (meta.someFuture || meta.build.state === 'future') return { cls: 'unk', text: prefix + 'unknown · future timestamp · not current' };
@@ -908,7 +993,7 @@
     var notes = []
       .concat(captureNotes(meta.race))
       .concat([
-        meta.date.state === 'historical' ? 'Card date is not today in America/New_York.' : ('Card date ' + (meta.date.key || 'unknown') + ' · ' + meta.date.state + '.'),
+        'Card ' + (meta.date.label || 'date invalid') + (meta.date.reason ? ' · ' + meta.date.reason : '') + '. Feed filter ' + (meta.date.query || 'not issued') + '. A capture scratch count is not a live clearance.',
         meta.surface.label,
         'Quotes ' + cov.current + ' current, ' + cov.stale + ' stale, ' + cov.future + ' future, ' + cov.unknown + ' missing. A missing or stale quote is not a scratch.',
         'Status ' + meta.statusTime + '. Quote window 30s. Status window 150s. Poll 3s.',
@@ -981,7 +1066,8 @@
     contrast: contrast,
     formatEt: formatEt,
     etDateKey: etDateKey,
-    parseCardDate: parseCardDate,
+    feedRaceDate: feedRaceDate,
+    etStamp: etStamp,
     cardDateState: cardDateState,
     timeState: timeState,
     classifyRunners: classifyRunners,
