@@ -8,12 +8,12 @@ const root = path.join(__dirname, '..');
 const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
 
 test('release constants match the existing windows and name the rollback', () => {
-  assert.equal(FU.RELEASE.version, 't438-usability-4');
+  assert.equal(FU.RELEASE.version, 't438-usability-5');
   assert.equal(FU.RELEASE.quoteFreshS, 30);
   assert.equal(FU.RELEASE.statusFreshS, 150);
   assert.equal(FU.RELEASE.pollMs, 3000);
   assert.ok(FU.RELEASE.rollback.length >= 4);
-  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-4/);
+  assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /t438-usability-5/);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /revert/i);
   assert.match(read('docs/USABILITY_T438_ROLLBACK.md'), /Do not merge/);
 });
@@ -360,8 +360,8 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('setInterval(fetchStatus,3000)');
   has('FRESH_QUOTE_S=30');
   has('STALE_STATUS_S=150');
-  has('js/usability.js?v=t438-usability-4');
-  has('css/usability.css?v=t438-usability-4');
+  has('js/usability.js?v=t438-usability-5');
+  has('css/usability.css?v=t438-usability-5');
   has('race_date=eq."+DATE');
   has('FU.classifyRunners');
   has('FU.statusRead');
@@ -509,6 +509,214 @@ test('raceState keeps a stale off row on the schedule and closes only a fresh cl
   assert.equal(elapsed.k, 'past');
   const quote = row('up', 12, 2);
   assert.notEqual(quote.k, 'off');
+});
+
+test('a stale quote is data wait and cannot paint a current edge or raise the meter', () => {
+  const vm = require('node:vm');
+  assert.equal(FU.quoteActionable(1179), false);
+  assert.equal(FU.quoteActionable(30), true);
+  assert.equal(FU.quoteActionable(30.001), false);
+  assert.equal(FU.quoteActionable(-1), false);
+  assert.equal(FU.quoteActionable(null), false);
+  const html = read('index.html');
+  const script = html.slice(html.indexOf('<script>\n') + 8, html.lastIndexOf('</script>'));
+  const body = script.slice(script.indexOf('const K='), script.indexOf('function usabilityModel'));
+  const now = Date.parse('2026-11-08T18:00:00Z');
+  const context = {
+    FU, STAT: {}, LIVE: {}, LAST: {}, HIST: {}, DATA: null, window: { __NOW_MS: now }, Date, Intl, Math, Number, String, isFinite,
+    localStorage: { getItem() { return null; } },
+    SCRATCH_AUDIT: {}, openH: {}
+  };
+  vm.createContext(context);
+  vm.runInContext(body, context);
+  const post = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(now + 60 * 1000));
+  const race = {
+    trk: 'FIXT', race: 1, post: post,
+    why: 'Stored morning: 54% tier PRIME. Action bet $4.',
+    gamblar_read: 'Morning sentence says prime and bet $4.',
+    horses: [
+      { pgm: '2', horse: 'Runner', p_raw: 0.54, vcp_floor_dec: 7, ml_dec: 4 },
+      { pgm: '3', horse: 'A', p_raw: 0.32, ml_dec: 6 },
+      { pgm: '4', horse: 'B', p_raw: 0.32, ml_dec: 8 },
+      { pgm: '5', horse: 'C', p_raw: 0.32, ml_dec: 10 }
+    ]
+  };
+  context.DATA = { mmdd: '1108', card_year: 2026, source_captured_at: '2026-11-08T00:14:40-05:00', beast: null, races: [race] };
+  function load(ageSec, dec) {
+    const key = FU.rosterKey('FIXT', 1, '2');
+    context.LIVE = { [key]: { dec: dec, first: 4, ts: now - ageSec * 1000 } };
+    context.STAT = {};
+    return context.evaluateGamblarLive(race);
+  }
+  const stale = load(1581, 5);
+  assert.equal(stale.code, 'DATA_WAIT');
+  assert.equal(stale.grp, 'watch');
+  assert.equal(stale.cls, 'watch');
+  assert.equal(stale.meter, 0);
+  assert.equal(stale.stake, 0);
+  assert.equal(stale.rs.k, 'sched');
+  assert.match(stale.rs.label, /SCHED 1 MTP \(no live feed\)/);
+  assert.match(stale.badge, /DATA WAIT/);
+  assert.match(stale.lines.join(' '), /not NO MODEL EDGE and not a bet/);
+  assert.equal(stale.badge.includes('NO MODEL EDGE'), false);
+  assert.equal(stale.lines.join(' ').includes('BET NOW'), false);
+  assert.match(stale.lines.join(' '), /not being used as the live price/);
+  const note = context.feedWaitText(race, stale);
+  assert.match(note, /^Feed waiting\./);
+  assert.match(note, /1581s/);
+  assert.match(note, /Last known #2 4\/1/);
+  assert.match(note, /historical edge \+80%/);
+  assert.match(note, /Not a live price and not a bet/);
+  const cards = race.horses.map((h) => context.horseCard(race, h, stale)).join('\n');
+  assert.equal(cards.includes('Feed waiting'), false);
+  assert.equal(cards.includes('4/1'), false);
+  assert.equal(cards.includes('+80%'), false);
+  assert.equal(cards.includes('edge pos'), false);
+  assert.equal(cards.includes('pickcard'), false);
+  assert.equal(cards.includes('hc bet'), false);
+  assert.equal(cards.includes('not actionable'), false);
+  assert.match(cards, /watchcard/);
+  assert.match(cards, /data-liveval class="">–<\/span>/);
+  const box = context.gboxHTML(race, stale);
+  assert.match(box, /betmeter mod/);
+  assert.match(box, /DATA WAIT · 0/);
+  assert.equal(box.includes('betmeter weak'), false);
+  assert.equal(box.includes('4/1'), false);
+  assert.equal(box.includes('+80%'), false);
+  const archived = context.morningBlock(race, stale);
+  assert.match(archived, /ARCHIVED MORNING CARD/);
+  assert.match(archived, /54% raw model probability/);
+  assert.match(archived, /36% adjusted win share/);
+  assert.match(archived, /tier PLAY/);
+  assert.match(archived, /Stored field why/);
+  assert.match(archived, /bet \$4/);
+  assert.equal(archived.includes('morning-arch'), true);
+  assert.equal(stale.badge.includes('$4'), false);
+  const freshPass = load(10, 5);
+  assert.equal(freshPass.code, 'PASS_EDGE');
+  assert.equal(freshPass.grp, 'pass');
+  context.STAT = { 'FIXT|1': { status: 'up', mtp: 8, ts: now - 5000 } };
+  const pass = context.evaluateGamblarLive(race);
+  assert.equal(pass.code, 'PASS_EDGE');
+  assert.equal(pass.grp, 'pass');
+  assert.equal(pass.meter, 30);
+  assert.match(pass.badge, /NO MODEL EDGE/);
+  const passBox = context.gboxHTML(race, pass);
+  assert.match(passBox, /betmeter weak/);
+  assert.match(passBox, /PASS · 30/);
+  assert.equal(context.feedWaitText(race, pass), '');
+  const passCard = context.horseCard(race, race.horses[0], pass);
+  assert.match(passCard, /passcard/);
+  assert.match(passCard, /edge neg/);
+  assert.equal(passCard.includes('edge pos'), false);
+  context.LIVE[FU.rosterKey('FIXT', 1, '2')].dec = 8;
+  context.LIVE[FU.rosterKey('FIXT', 1, '2')].ts = now - 10000;
+  const watch = context.evaluateGamblarLive(race);
+  assert.equal(watch.grp, 'watch');
+  assert.notEqual(watch.code, 'DATA_WAIT');
+  assert.notEqual(watch.grp, 'bet');
+  context.STAT['FIXT|1'].mtp = 2;
+  const bet = context.evaluateGamblarLive(race);
+  assert.equal(bet.grp, 'bet');
+  assert.match(bet.badge, /\$2/);
+  assert.equal(bet.badge.includes('$4'), false);
+  const betCard = context.horseCard(race, race.horses[0], bet);
+  assert.match(betCard, /pickcard/);
+  assert.match(betCard, /edge pos/);
+  context.LIVE[FU.rosterKey('FIXT', 1, '2')].ts = now - 1179000;
+  context.STAT['FIXT|1'].mtp = 2;
+  const staleNear = context.evaluateGamblarLive(race);
+  assert.equal(staleNear.code, 'DATA_WAIT');
+  assert.equal(staleNear.meter, 0);
+  assert.notEqual(staleNear.grp, 'bet');
+  assert.match(html, /function quoteIsCurrent/);
+  assert.equal(html.includes("e>=0?'pos'"), false);
+  assert.match(html, /setInterval\(fetchLive,3000\)/);
+  assert.match(html, /setInterval\(fetchStatus,3000\)/);
+  assert.match(html, /race_date=eq\."\+DATE/);
+  assert.match(html, /FU\.rosterKey/);
+  assert.equal(html.includes('eq.1107'), false);
+});
+
+test('LRL race 2 quotes and MTP 29 from 12:08:39 PM ET stay historical at 12:37', () => {
+  const vm = require('node:vm');
+  const captured = Date.parse('2026-11-08T17:08:39.828Z');
+  const at1237 = Date.parse('2026-11-08T17:37:00.828Z');
+  assert.equal((at1237 - captured) / 1000, 1701);
+  const staleUp = FU.statusRead({ hasRow: true, status: 'up', ageSec: 1701, mtp: 29 });
+  assert.equal(staleUp.kind, 'stale');
+  assert.equal(staleUp.closed, false);
+  assert.equal(FU.timeState(1701, 150), 'stale');
+  assert.equal(FU.quoteActionable(1701), false);
+  const html = read('index.html');
+  const script = html.slice(html.indexOf('<script>\n') + 8, html.lastIndexOf('</script>'));
+  const body = script.slice(script.indexOf('const K='), script.indexOf('function usabilityModel'));
+  const context = {
+    FU, STAT: {}, LIVE: {}, LAST: {}, HIST: {}, DATA: null, window: { __NOW_MS: at1237 }, Date, Intl, Math, Number, String, isFinite,
+    localStorage: { getItem() { return null; } },
+    SCRATCH_AUDIT: {}, openH: {}
+  };
+  vm.createContext(context);
+  vm.runInContext(body, context);
+  const post = new Intl.DateTimeFormat('en-US', { timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date(at1237 + 60000));
+  const race = {
+    trk: 'LRL', race: 2, post: post, mmdd: '1108',
+    horses: [
+      { pgm: '2', horse: 'Alvy', p_raw: 0.54, vcp_floor_dec: 7, ml_dec: 4 },
+      { pgm: '1', horse: 'Aztec', p_raw: 0.32, ml_dec: 6 },
+      { pgm: '4', horse: 'B', p_raw: 0.32, ml_dec: 8 },
+      { pgm: '5', horse: 'C', p_raw: 0.32, ml_dec: 10 }
+    ]
+  };
+  context.DATA = { mmdd: '1108', card_year: 2026, source_captured_at: '2026-11-08T00:14:40-05:00', beast: null, races: [race] };
+  context.STAT = { 'LRL|2': { status: 'up', mtp: 29, ts: captured } };
+  context.LIVE = {
+    [FU.rosterKey('LRL', 2, 2)]: { dec: 5, first: null, ts: captured },
+    [FU.rosterKey('LRL', 2, 1)]: { dec: 5, first: null, ts: captured }
+  };
+  assert.equal(FU.rosterKey('LRL', 2, 2), 'LRL|2|2');
+  assert.equal(FU.rosterKey('LRL', 2, 1), 'LRL|2|1');
+  const rs = context.raceState(race);
+  assert.equal(rs.k, 'sched');
+  assert.equal(rs.live, false);
+  assert.equal(rs.mtp, 1);
+  assert.equal(rs.label, 'SCHED 1 MTP (no live feed)');
+  assert.equal(String(rs.label).includes('29'), false);
+  const call = context.evaluateGamblarLive(race);
+  assert.equal(call.code, 'DATA_WAIT');
+  assert.equal(call.meter, 0);
+  assert.equal(call.grp, 'watch');
+  assert.equal(call.rs.label, 'SCHED 1 MTP (no live feed)');
+  const note = context.feedWaitText(race, call);
+  assert.match(note, /Feed waiting/);
+  assert.match(note, /1701s/);
+  assert.match(note, /Last known #2 4\/1/);
+  assert.equal(note.includes('29 MTP'), false);
+  const cards = race.horses.map((h) => context.horseCard(race, h, call)).join('\n');
+  assert.equal(cards.includes('4/1'), false);
+  assert.equal(cards.includes('edge pos'), false);
+  assert.equal(cards.includes('29'), false);
+  assert.equal(cards.includes('Stale quote'), false);
+  assert.equal(cards.includes('1701'), false);
+  assert.equal((cards.match(/Feed waiting/g) || []).length, 0);
+  const box = context.gboxHTML(race, call);
+  assert.match(box, /betmeter mod/);
+  assert.match(box, /DATA WAIT · 0/);
+  assert.equal(box.includes('29 MTP'), false);
+  assert.equal(box.includes('4/1'), false);
+  context.STAT['LRL|2'] = { status: 'up', mtp: 29, ts: at1237 - 10000 };
+  const freshStatus = context.raceState(race);
+  assert.equal(freshStatus.k, 'up');
+  assert.equal(freshStatus.mtp, 29);
+  assert.match(freshStatus.label, /LIVE · 29 MTP/);
+  const stillStalePrice = context.evaluateGamblarLive(race);
+  assert.equal(stillStalePrice.code, 'DATA_WAIT');
+  assert.equal(stillStalePrice.meter, 0);
+  assert.notEqual(stillStalePrice.grp, 'bet');
+  const freshCards = race.horses.map((h) => context.horseCard(race, h, stillStalePrice)).join('\n');
+  assert.equal(freshCards.includes('4/1'), false);
+  assert.equal(freshCards.includes('edge pos'), false);
+  assert.equal(freshCards.includes('Stale quote'), false);
 });
 
 test('fixture file is synthetic and is not wired as a live fallback', () => {

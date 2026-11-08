@@ -9,7 +9,7 @@
   'use strict';
 
   var RELEASE = {
-    version: 't438-usability-4',
+    version: 't438-usability-5',
     quoteFreshS: 30,
     statusFreshS: 150,
     pollMs: 3000,
@@ -198,6 +198,10 @@
     if (base.capture) label += ' · captured ' + base.capture;
     if (iso === today.iso) return Object.assign(base, { state: 'same-day', label: label, reason: '' });
     return Object.assign(base, { state: 'historical', label: label, reason: 'explicit calendar day is not this Eastern day' });
+  }
+
+  function quoteActionable(ageSec) {
+    return timeState(ageSec, RELEASE.quoteFreshS) === 'current';
   }
 
   function timeState(age, freshLimit) {
@@ -1115,6 +1119,7 @@
     raceRoster: raceRoster,
     statusRead: statusRead,
     timeState: timeState,
+    quoteActionable: quoteActionable,
     classifyRunners: classifyRunners,
     engineRaw: engineRaw,
     displayRaw: displayRaw,
