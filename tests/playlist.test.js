@@ -156,10 +156,12 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
   const rows = [
     PL.raceRow({ trk: 'IND', race: 2, post: '1:10 PM', nowSec: 13 * 3600, badge: 'PLAY', picks: [{ pgm: '1', name: 'Later', minText: '4-1', meter: meter('green', '5-1') }] }),
     PL.raceRow({ trk: 'FL', race: 1, post: '12:10PM', nowSec: 12 * 3600, badge: 'BET', picks: [{ pgm: '3', name: 'Name <script> & "quoted"', minText: '1.69-1', gapText: 'lone speed', meter: meter('yellow', '2-1') }] }),
-    PL.raceRow({ trk: 'FL', race: 4, post: '11:40AM', nowSec: 12 * 3600, finished: true, badge: 'OFF', picks: [{ pgm: '2', name: 'Done', minText: '3-1', meter: meter('none') }] })
+    PL.raceRow({ trk: 'FL', race: 4, post: '11:40AM', nowSec: 12 * 3600, finished: true, badge: 'OFF', picks: [{ pgm: '2', name: 'Done', minText: '3-1', meter: meter('none') }] }),
+    PL.raceRow({ trk: 'MNR', race: 3, post: '1:30 PM', nowSec: 13 * 3600, badge: 'LEAN', picks: [{ pgm: '7', name: 'Waiting', minText: '5-1', meter: meter('none') }] }),
+    PL.raceRow({ trk: 'PHA', race: 5, post: '2:00 PM', nowSec: 13 * 3600, badge: 'PLAY', picks: [{ pgm: '1', name: 'Under', minText: '8-1', meter: meter('red', '3-1') }] })
   ];
   const view = PL.applyView(rows, { filter: 'all', track: 'all', showFinished: false });
-  assert.deepEqual(view.map((r) => r.key), ['FL|1', 'IND|2']);
+  assert.deepEqual(view.map((r) => r.key), ['FL|1', 'IND|2', 'MNR|3', 'PHA|5']);
   assert.equal(view[0].next, true);
   assert.equal(view[0].when, 'in 10m');
   assert.equal(view[1].next, false);
@@ -168,7 +170,7 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
   const html = PL.boardHtml({
     hiddenCount: 2,
     feedDown: false,
-    lastUpdate: '12:08:39',
+    lastUpdate: '4:25 PM',
     filter: 'all',
     track: 'all',
     tracks: ['FL', 'IND'],
@@ -177,14 +179,15 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
   });
   assert.equal(html.includes('<script>'), false);
   assert.ok(html.includes('Name &lt;script&gt;'));
-  assert.ok(html.includes('>Bet<'));
-  assert.ok(html.includes('>Close<'));
-  assert.ok(html.includes('>Pass<'));
-  assert.ok(html.includes('>No odds<'));
-  assert.ok(html.includes('Last odds update 12:08:39'));
-  assert.ok(html.includes('Auto-refresh'));
+  assert.ok(html.includes('>BET<'));
+  assert.ok(html.includes('>CLOSE<'));
+  assert.ok(html.includes('>PASS<'));
+  assert.ok(html.includes('>WAITING<'));
+  assert.ok(html.includes('Odds updated 4:25 PM · auto-refreshing'));
+  assert.ok(html.includes('All upcoming'));
+  assert.ok(html.includes('Bets only'));
   assert.ok(html.includes('lone speed'));
-  assert.ok(html.includes('min 1.69-1'));
+  assert.ok(html.includes('MIN 1.69-1'));
   assert.equal(html.includes('oval'), false);
   assert.equal(html.includes('MIN_PRICE_MULTIPLIER'), false);
   assert.equal(html.includes('YELLOW_BAND'), false);
@@ -195,13 +198,12 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
     tracks: ['FL'],
     rows: [PL.raceRow({ trk: 'FL', race: 1, post: '12:10PM', nowSec: 12 * 3600, badge: 'PLAY', feedDown: true, picks: [{ pgm: '3', name: 'Sample', minText: '2-1', meter: meter('none') }] })]
   });
-  assert.equal(PL.FEED_DOWN_BANNER, 'Live odds feed not running. Open TwinSpires in the feed browser to start it.');
+  assert.equal(PL.FEED_DOWN_BANNER, 'Odds feed not running. Open TwinSpires in the feed browser to start it.');
   assert.equal(PL.FEED_DOWN_BANNER.includes('laptop'), false);
   assert.ok(down.includes(PL.FEED_DOWN_BANNER));
-  assert.ok(down.includes('min 2-1'));
+  assert.ok(down.includes('MIN 2-1'));
   assert.ok(down.includes('Sample'));
-  assert.ok(down.includes('<b data-word></b>'));
-  assert.equal(down.split('No odds').length - 1, 2);
+  assert.ok(down.includes('>WAITING<'));
   assert.equal(PL.stageNote({ stages: [{ ok: true }, { ok: true }, { ok: true }] }).includes('Three stage orders'), true);
 });
 
@@ -241,12 +243,13 @@ test('real 1109 quote rows match a card that stores race and program as numbers'
   assert.equal(row.picks[0].liveText, '12-1');
   const html = PL.boardHtml({ rows: [row], tracks: ['FL'], hiddenCount: 0, feedDown: false, lastUpdate: '16:07:51' });
   assert.ok(html.includes('Sample'));
-  assert.ok(html.includes('live 12-1'));
+  assert.ok(html.includes('LIVE 12-1'));
   const none = PL.boardHtml({ rows: [], tracks: [], hiddenCount: 43, feedDown: true });
   assert.ok(none.includes('No plays in this view.'));
   assert.ok(none.includes(PL.FEED_DOWN_BANNER));
   const index = read('index.html');
-  assert.ok(index.includes('js/playlist.js?v=play-live-2'));
+  assert.ok(index.includes('js/playlist.js?v=play-board-3'));
+  assert.ok(index.includes('css/playlist.css?v=play-board-3'));
   assert.ok(index.includes('PL.ingestQuotes'));
   assert.ok(index.includes('No plays in this view.'));
 });
@@ -275,7 +278,7 @@ test('default ovals keep their ids and the horse card markup is untouched', () =
   assert.ok(horse.includes('class="hcard'));
   assert.equal(horse.includes('pl-meter'), false);
   assert.ok(index.includes('id="playlist"'));
-  assert.ok(index.includes('js/playlist.js?v=play-live-2'));
+  assert.ok(index.includes('js/playlist.js?v=play-board-3'));
   assert.ok(index.includes('function decryptWith'));
   assert.equal(index.includes('playlist-fixture'), false);
   const css = read('css/usability.css');

@@ -1,0 +1,169 @@
+/* Play list board. Loaded on its own address so a stale usability.css cannot hide it.
+   Full-card horse rows and the three ovals are not restyled here. */
+.pl-board { margin: 8px 0 28px; }
+.pl-statusline {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 8px 0 12px;
+  min-height: 44px;
+  color: #d7e4f2;
+  font-size: 16px;
+  font-weight: 700;
+}
+.pl-pulse {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #34d39b;
+  flex: none;
+  animation: plping 1.6s ease-out infinite;
+}
+@keyframes plping {
+  70%, 100% { box-shadow: 0 0 0 8px rgba(52, 211, 155, 0); }
+}
+.pl-banner {
+  margin: 8px 0 12px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: #5a1d1d;
+  border: 1px solid #ff5d6c;
+  color: #ffd7db;
+  font-size: 17px;
+  font-weight: 800;
+  line-height: 1.4;
+}
+.pl-help { margin: 0 0 10px; }
+.pl-help summary, .site-help summary {
+  cursor: pointer;
+  font-weight: 800;
+  font-size: 15px;
+  color: #9db0c8;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+.pl-help p, .site-help { color: #c5d4e6; font-size: 15px; line-height: 1.45; }
+.site-help { margin: 12px 0 4px; }
+.pl-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 4px 0 14px;
+}
+.pl-chip {
+  flex: none;
+  min-height: 44px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid #8aa4c4;
+  background: #15202f;
+  color: #e7eef6;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+.pl-chip.on { border-color: #34d39b; background: rgba(52, 211, 155, .16); color: #d9ffef; }
+.pl-count { margin: 0 0 10px; color: #9db0c8; font-size: 14px; }
+.pl-empty { margin: 12px 0; color: #e7eef6; font-size: 16px; font-weight: 700; }
+.pl-row {
+  display: block;
+  width: 100%;
+  margin: 0 0 12px;
+  padding: 0;
+  text-align: left;
+  color: #e7eef6;
+  font: inherit;
+  background: #111a28;
+  border: 1px solid #28384f;
+  border-radius: 16px;
+  cursor: pointer;
+  appearance: none;
+}
+.pl-rowin {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    "when badge"
+    "rk badge"
+    "main badge"
+    "prices badge"
+    "second second";
+  gap: 4px 14px;
+  width: 100%;
+  padding: 14px 16px;
+  min-height: 96px;
+  box-sizing: border-box;
+}
+.pl-row.pl-next { border-color: #e0b000; background: #1c2636; box-shadow: 0 0 0 2px rgba(224, 176, 0, .45); }
+.pl-when { grid-area: when; color: #f6e7b4; font-weight: 800; font-size: 16px; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pl-rk { grid-area: rk; font-size: 18px; font-weight: 800; }
+.pl-nexttag {
+  color: #1a1200;
+  background: #e0b000;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.pl-main { grid-area: main; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.pl-prices { grid-area: prices; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.pl-second { grid-area: second; display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; color: #d5e2f0; font-size: 15px; }
+.pl-badge { grid-area: badge; align-self: center; justify-self: end; }
+.pl-name { font-size: 22px; font-weight: 800; line-height: 1.2; }
+.pl-tier {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  color: #c5d4e6;
+  border: 1px solid #3d4e66;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.pl-gap {
+  font-size: 12px;
+  font-weight: 800;
+  color: #f6e7b4;
+  background: #2a2410;
+  border: 1px solid #8a6a2c;
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+.pl-liveodds { font-size: 28px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.05; white-space: nowrap; }
+.pl-second .pl-liveodds { font-size: 16px; }
+.pl-min { color: #c5d4e6; font-size: 15px; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.pl-name2 { font-weight: 700; }
+.pl-badge {
+  grid-area: badge;
+  align-self: center;
+  justify-self: end;
+  min-width: 104px;
+  min-height: 52px;
+  padding: 8px 12px;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  background: #3a4658;
+  color: #e7eef6;
+}
+.pl-row.pl-green .pl-badge { background: #34d39b; color: #06241a; }
+.pl-row.pl-yellow .pl-badge { background: #e0b000; color: #1a1200; }
+.pl-row.pl-red .pl-badge { background: #ff5d6c; color: #2a060a; }
+.pl-row.pl-none .pl-badge, .pl-row.pl-quiet .pl-badge { background: #3a4658; color: #d5e2f0; }
+.pl-row.pl-done { opacity: .72; }
+@media (min-width: 860px) {
+  .pl-rowin {
+    grid-template-columns: 168px 84px minmax(0, 1.5fr) 168px 112px;
+    grid-template-areas:
+      "when rk main prices badge"
+      ". . second second badge";
+    align-items: center;
+    min-height: 84px;
+  }
+  .pl-second { grid-area: second; }
+}

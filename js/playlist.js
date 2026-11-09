@@ -293,6 +293,7 @@
       minText: minD == null ? '' : oddsTo1(minD),
       mlText: ml == null ? '' : oddsTo1(ml),
       gapText: patternChip(h, includeRaceGap ? race : null),
+      tier: h.tier || h.model_tier || '',
       explicit: false,
       role: 'primary'
     };
@@ -534,7 +535,7 @@
     return parts.join('');
   }
 
-  var FEED_DOWN_BANNER = 'Live odds feed not running. Open TwinSpires in the feed browser to start it.';
+  var FEED_DOWN_BANNER = 'Odds feed not running. Open TwinSpires in the feed browser to start it.';
 
   function parsePostSeconds(post) {
     if (!post) return null;
@@ -565,12 +566,21 @@
     return hour + ':' + (g.minute || '00') + ':' + (g.second || '00');
   }
 
-  function statusFace(meter, feedDown) {
-    if (feedDown) return { tone: 'quiet', word: '' };
-    if (!meter || meter.tone === 'none' || meter.tone === 'quiet') return { tone: 'none', word: 'No odds' };
-    if (meter.tone === 'green') return { tone: 'green', word: 'Bet' };
-    if (meter.tone === 'yellow') return { tone: 'yellow', word: 'Close' };
-    return { tone: 'red', word: 'Pass' };
+  function clockAp(ms) {
+    if (ms == null || !isFinite(Number(ms))) return '';
+    var parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', hour: 'numeric', minute: '2-digit', hour12: true
+    }).formatToParts(new Date(Number(ms)));
+    var g = {};
+    parts.forEach(function (p) { if (p.type !== 'literal') g[p.type] = p.value; });
+    return (g.hour || '') + ':' + (g.minute || '00') + ' ' + (g.dayPeriod || '').toUpperCase();
+  }
+
+  function statusFace(meter) {
+    if (!meter || meter.tone === 'none' || meter.tone === 'quiet') return { tone: 'none', word: 'WAITING' };
+    if (meter.tone === 'green') return { tone: 'green', word: 'BET' };
+    if (meter.tone === 'yellow') return { tone: 'yellow', word: 'CLOSE' };
+    return { tone: 'red', word: 'PASS' };
   }
 
   function bestFace(faces) {
@@ -587,6 +597,12 @@
     return (picks || []).some(function (pk) {
       return pk && pk.meter && pk.meter.tone !== 'none' && pk.meter.price;
     });
+  }
+
+  function modelTier(text) {
+    var t = String(text == null ? '' : text).trim().toUpperCase();
+    if (t === 'BET' || t === 'LEAN') return t;
+    return '';
   }
 
   function shortBadge(text) {
@@ -626,56 +642,54 @@
   }
 
   function helpHtml() {
-    return '<details class="pl-help"><summary class="pl-info">i</summary>'
-      + '<p>Bet means the live price is at or above the minimum. Close means it is just under the minimum. '
-      + 'Pass means the price is further under, the race was passed, or the price collapsed. '
-      + 'No odds means the quote is missing or stale. A missing price is not a scratch. '
-      + 'The minimum is the model fair price with a margin, shown as odds-to-1. Tap a race for the full card.</p>'
+    return '<details class="pl-help"><summary>Help</summary>'
+      + '<p>Green BET means the live price is at or above the minimum. Yellow CLOSE means it is just under the minimum. '
+      + 'Red PASS means the price is further under, the race was passed, or the price collapsed. '
+      + 'Grey WAITING means there is no fresh quote yet. A missing price is not a scratch. Tap a row for the full card.</p>'
       + '</details>';
-  }
-
-  function legendLineHtml() {
-    return '<div class="pl-key" aria-label="Status key">'
-      + '<span><i class="pl-dot green"></i>Bet</span>'
-      + '<span><i class="pl-dot yellow"></i>Close</span>'
-      + '<span><i class="pl-dot red"></i>Pass</span>'
-      + '<span><i class="pl-dot none"></i>No odds</span>'
-      + helpHtml()
-      + '</div>';
   }
 
   function chip(label, attrs, on) {
     return '<button type="button" class="pl-chip' + (on ? ' on' : '') + '" ' + attrs + '>' + esc(label) + '</button>';
   }
 
-  function pickLine(pk) {
-    var gap = pk.gapText ? '<span class="pl-gap">' + esc(pk.gapText) + '</span>' : '';
-    return '<span class="pl-pick"><b>#' + esc(pk.pgm) + ' ' + esc(pk.name || '') + '</b>'
-      + '<small>min ' + esc(pk.minText || '—') + '</small>' + gap
-      + '<b class="pl-live" data-live="' + esc(pk.pgm) + '">' + (pk.liveText ? ('live ' + esc(pk.liveText)) : '') + '</b></span>';
+  function liveCell(pk) {
+    if (!pk) return '';
+    var text = pk.liveText ? ('LIVE ' + pk.liveText) : 'LIVE —';
+    return '<b class="pl-liveodds" data-live="' + esc(pk.pgm || '') + '">' + esc(text) + '</b>';
   }
 
   function rowHtmlCompact(row) {
     var picks = row.picks || [];
+    var pk = picks[0] || {};
+    var second = picks[1] || null;
     var when = [row.post || '', row.when || ''].filter(Boolean).join(' · ');
-    return '<button type="button" class="pl-row pl-' + esc(row.tone || 'quiet') + (row.next ? ' pl-next' : '') + (row.finished ? ' pl-done' : '') + '"'
+    var gap = pk.gapText ? '<span class="pl-gap">' + esc(pk.gapText) + '</span>' : '';
+    var tierLabel = modelTier(row.tier);
+    var tier = tierLabel ? '<span class="pl-tier">' + esc(tierLabel) + '</span>' : '';
+    var secondHtml = '';
+    if (second) {
+      secondHtml = '<span class="pl-second"><span class="pl-name2">#' + esc(second.pgm) + ' ' + esc(second.name || '') + '</span>'
+        + '<span class="pl-min">MIN ' + esc(second.minText || '—') + '</span>' + liveCell(second) + '</span>';
+    }
+    return '<button type="button" class="pl-row pl-' + esc(row.tone || 'none') + (row.next ? ' pl-next' : '') + (row.finished ? ' pl-done' : '') + '"'
       + ' data-open="1" data-trk="' + esc(row.trk) + '" data-race="' + esc(row.race) + '" data-plrk="' + esc(row.key || '') + '">'
-      + '<span class="pl-bar" data-bar aria-hidden="true"></span>'
-      + '<span class="pl-id"><b>' + esc(row.trk) + ' R' + esc(row.race) + '</b>'
-      + (row.next ? '<span class="pl-nexttag">Next</span>' : '')
-      + '<small data-cd>' + esc(when) + '</small></span>'
-      + '<span class="pl-pill">' + esc(row.badge || 'PLAY') + '</span>'
-      + '<span class="pl-picks">' + picks.map(pickLine).join('') + '</span>'
-      + '<span class="pl-stat" data-stat><i class="pl-big" aria-hidden="true"></i><b data-word>' + esc(row.word || '') + '</b></span>'
-      + '</button>';
+      + '<span class="pl-rowin">'
+      + '<span class="pl-when"><span data-cd>' + esc(when) + '</span>' + (row.next ? '<span class="pl-nexttag">Next</span>' : '') + '</span>'
+      + '<span class="pl-rk">' + esc(row.trk) + ' R' + esc(row.race) + '</span>'
+      + '<span class="pl-main"><span class="pl-name">#' + esc(pk.pgm || '') + ' ' + esc(pk.name || '') + '</span>' + tier + gap + '</span>'
+      + '<span class="pl-prices">' + liveCell(pk) + '<span class="pl-min">MIN ' + esc(pk.minText || '—') + '</span></span>'
+      + secondHtml
+      + '<span class="pl-badge" data-word>' + esc(row.word || 'WAITING') + '</span>'
+      + '</span></button>';
   }
 
   function raceRow(input) {
     input = input || {};
     var feedDown = !!input.feedDown;
     var picks = input.picks || [];
-    var faces = picks.map(function (pk) { return statusFace(pk.meter, feedDown); });
-    var best = bestFace(faces.length ? faces : [statusFace(null, feedDown)]);
+    var faces = picks.map(function (pk) { return statusFace(pk.meter); });
+    var best = bestFace(faces.length ? faces : [statusFace(null)]);
     var postSec = input.postSec != null ? input.postSec : parsePostSeconds(input.post);
     var sec = (postSec != null && input.nowSec != null) ? (postSec - input.nowSec) : input.sec;
     return {
@@ -687,6 +701,7 @@
       finished: !!input.finished,
       when: countdownText(sec, !!input.finished),
       badge: shortBadge(input.badge),
+      tier: modelTier((picks[0] && picks[0].tier) || input.tier || input.badge),
       tone: best.tone,
       word: best.word,
       hasLive: !feedDown && rowHasLive(picks),
@@ -696,6 +711,7 @@
           name: pk.name,
           minText: pk.minText,
           gapText: pk.gapText || '',
+          tier: pk.tier || '',
           liveText: feedDown ? '' : ((pk.meter && pk.meter.price) || ''),
           role: pk.role
         };
@@ -706,15 +722,14 @@
   function boardHtml(model) {
     model = model || {};
     var rows = model.rows || [];
-    var parts = ['<div class="pl-board">', legendLineHtml()];
-    parts.push('<div class="pl-livebar"><span class="pl-pulse' + (model.feedDown ? ' pl-pulse-off' : '') + '" data-beat="' + esc(model.beat || 0) + '"></span>'
-      + '<span data-last>Last odds update ' + esc(model.lastUpdate || '—') + '</span>'
-      + '<span class="pl-auto">Auto-refresh</span></div>');
+    var parts = ['<div class="pl-board">'];
     if (model.feedDown) parts.push('<p class="pl-banner">' + esc(FEED_DOWN_BANNER) + '</p>');
-    parts.push('<div class="pl-chips">');
-    parts.push(chip('All', 'data-plfilter="all"', model.filter !== 'bet' && model.filter !== 'live'));
-    parts.push(chip('Bet only', 'data-plfilter="bet"', model.filter === 'bet'));
-    parts.push(chip('Has live odds', 'data-plfilter="live"', model.filter === 'live'));
+    else parts.push('<p class="pl-statusline"><span class="pl-pulse" data-beat="' + esc(model.beat || 0) + '"></span>'
+      + '<span data-last>Odds updated ' + esc(model.lastUpdate || '—') + ' · auto-refreshing</span></p>');
+    parts.push(helpHtml());
+    parts.push('<div class="pl-chips" role="tablist">');
+    parts.push(chip('All upcoming', 'data-plfilter="all"', model.filter !== 'bet' && model.filter !== 'live'));
+    parts.push(chip('Bets only', 'data-plfilter="bet"', model.filter === 'bet'));
     parts.push(chip('All tracks', 'data-pltrack="all"', !model.track || model.track === 'all'));
     (model.tracks || []).forEach(function (trk) {
       parts.push(chip(trk, 'data-pltrack="' + esc(trk) + '"', model.track === trk));
@@ -722,7 +737,7 @@
     var doneLabel = (model.showFinished ? 'Hide finished' : 'Show finished') + ' (' + (model.finishedCount || 0) + ')';
     parts.push(chip(doneLabel, 'data-pldone="1"', !!model.showFinished));
     parts.push('</div>');
-    if (model.hiddenCount) parts.push('<p class="pl-count">' + model.hiddenCount + ' passed, on the full card.</p>');
+    if (model.hiddenCount) parts.push('<p class="pl-count">' + model.hiddenCount + (model.hiddenCount === 1 ? ' passed race stays' : ' passed races stay') + ' on the full card.</p>');
     if (!rows.length) parts.push('<p class="pl-empty">No plays in this view.</p>');
     parts.push('<div class="pl-rows">');
     rows.forEach(function (row) { parts.push(rowHtmlCompact(row)); });
@@ -733,7 +748,7 @@
   function patchBoard(host, model) {
     if (!host || !model) return;
     var last = host.querySelector('[data-last]');
-    var text = 'Last odds update ' + (model.lastUpdate || '—');
+    var text = 'Odds updated ' + (model.lastUpdate || '—') + ' · auto-refreshing';
     if (last && last.textContent !== text) last.textContent = text;
     var pulse = host.querySelector('.pl-pulse');
     if (pulse) {
@@ -755,7 +770,7 @@
       if (word && word.textContent !== (row.word || '')) word.textContent = row.word || '';
       (row.picks || []).forEach(function (pk) {
         var live = el.querySelector('[data-live="' + pk.pgm + '"]');
-        var next = pk.liveText ? ('live ' + pk.liveText) : '';
+        var next = pk.liveText ? ('LIVE ' + pk.liveText) : 'LIVE —';
         if (live && live.textContent !== next) live.textContent = next;
       });
       el.classList.toggle('pl-next', !!row.next);
@@ -807,6 +822,7 @@
     parsePostSeconds: parsePostSeconds,
     countdownText: countdownText,
     clockHms: clockHms,
+    clockAp: clockAp,
     statusFace: statusFace,
     patternChip: patternChip,
     raceRow: raceRow,

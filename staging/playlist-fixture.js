@@ -21,7 +21,7 @@
         trk: 'FL', race: 1, surf: 'Dirt', dist: '5.5f', post: '12:10PM', verdict: 'PLAY',
         v25_info: { pattern_gap: 'pace shape' },
         horses: [
-          horse(3, 'Close Sample', 0.25, 3),
+          horse(3, 'Close Sample', 0.25, 3, { tier: 'LEAN' }),
           horse(5, 'Not A Pick', 0.08, 12)
         ],
         stage_orders: { first: ['3', '5'], second: ['5', '3'], finish: ['3', '5'] }
@@ -83,7 +83,7 @@
     return PL.playPicks(race).map(function (pk) {
       var q = quote(race, pk.pgm);
       return {
-        pgm: pk.pgm, name: pk.name, role: pk.role, minText: pk.minText, gapText: pk.gapText,
+        pgm: pk.pgm, name: pk.name, role: pk.role, minText: pk.minText, gapText: pk.gapText, tier: pk.tier,
         meter: PL.meter({
           winDec: q ? q.dec : null,
           age: q ? (now - q.ts) / 1000 : null,
@@ -119,7 +119,7 @@
     document.getElementById('playlist').innerHTML = PL.boardHtml({
       hiddenCount: hidden,
       feedDown: feedDown,
-      lastUpdate: feedDown ? '' : PL.clockHms(now),
+      lastUpdate: feedDown ? '' : PL.clockAp(now),
       beat: ui.beat,
       showFinished: ui.showFinished,
       finishedCount: records.filter(function (r) { return r.finished; }).length,
@@ -139,9 +139,16 @@
     if (document.querySelector('#playlist [data-stage]')) problems.push('ovals in the play list');
     if (text.indexOf('MIN_PRICE_MULTIPLIER') >= 0) problems.push('constant name visible');
     var blob = text.toLowerCase();
-    ['bet', 'close', 'pass', 'no odds', 'next', 'in 10m', 'lone speed', 'second pick', 'auto-refresh'].forEach(function (needle) {
-      if (!feedDown && blob.indexOf(needle) < 0) problems.push('missing ' + needle);
-    });
+    var full = !feedDown && ui.filter === 'all' && ui.track === 'all' && !ui.showFinished;
+    if (full) {
+      ['bet', 'close', 'pass', 'waiting', 'next', 'in 10m', 'lone speed', 'second pick', 'auto-refreshing', 'all upcoming', 'bets only'].forEach(function (needle) {
+        if (blob.indexOf(needle) < 0) problems.push('missing ' + needle);
+      });
+    }
+    if (!feedDown && ui.filter === 'bet') {
+      if (text.indexOf('Bet Sample') < 0) problems.push('bet filter missed a bet');
+      if (text.indexOf('Close Sample') >= 0 || text.indexOf('Stale Sample') >= 0) problems.push('bet filter showed a non-bet');
+    }
     if (text.indexOf('Not A Pick') >= 0 || text.indexOf('Also Ran') >= 0 || text.indexOf('Outside') >= 0) problems.push('non-pick shown');
     if (!ui.showFinished && text.indexOf('Finished Sample') >= 0) problems.push('finished race shown');
     if (feedDown) {
@@ -149,7 +156,7 @@
       if (text.indexOf('Bet Sample') < 0) problems.push('picks hidden when feed is down');
     } else if (text.indexOf(PL.FEED_DOWN_BANNER) >= 0) problems.push('banner while quotes exist');
     var qa = document.getElementById('qa');
-    qa.textContent = problems.length ? ('Fixture checks failed: ' + problems.join('; ')) : 'Fixture checks passed. Compact play list, mocked 11/09 shape.';
+    qa.textContent = problems.length ? ('Fixture checks failed: ' + problems.join('; ')) : 'Sample odds only. Play list checks passed.';
     qa.dataset.ok = problems.length ? '0' : '1';
   }
 
