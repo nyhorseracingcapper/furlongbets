@@ -430,7 +430,7 @@
     return parts.join('');
   }
 
-  var FEED_DOWN_BANNER = 'Live odds feed not running. Start the TwinSpires odds feed on your laptop.';
+  var FEED_DOWN_BANNER = 'Live odds feed not running. Open TwinSpires in the feed browser to start it.';
 
   function parsePostSeconds(post) {
     if (!post) return null;

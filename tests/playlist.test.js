@@ -195,6 +195,8 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
     tracks: ['FL'],
     rows: [PL.raceRow({ trk: 'FL', race: 1, post: '12:10PM', nowSec: 12 * 3600, badge: 'PLAY', feedDown: true, picks: [{ pgm: '3', name: 'Sample', minText: '2-1', meter: meter('none') }] })]
   });
+  assert.equal(PL.FEED_DOWN_BANNER, 'Live odds feed not running. Open TwinSpires in the feed browser to start it.');
+  assert.equal(PL.FEED_DOWN_BANNER.includes('laptop'), false);
   assert.ok(down.includes(PL.FEED_DOWN_BANNER));
   assert.ok(down.includes('min 2-1'));
   assert.ok(down.includes('Sample'));
