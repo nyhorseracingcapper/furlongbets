@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>FURLONG academy fixture — not a live card</title>
+<link rel="stylesheet" href="../css/usability.css">
+<link rel="stylesheet" href="../css/academy.css?v=academy-1">
+<style>
+  :root { color-scheme: dark; --panel2:#0d1522; --tx:#e9eef6; --mut:#9db0c8; --disp:system-ui; --mono:ui-monospace,monospace; }
+  body { margin: 0; background: #080c14; color: #e7eef6; font-family: system-ui, Segoe UI, Roboto, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 12px 14px 48px; }
+  header { padding: 8px 0 12px; }
+  .brand { font-weight: 800; font-size: 18px; }
+  .brand b { color: #34d39b; }
+  .note { color: #f6e7b4; background: #2a2410; border: 1px solid #8a6a2c; border-radius: 10px; padding: 10px 12px; }
+  .rhdr { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: baseline; margin: 14px 0 10px; }
+  .rhdr .t { font-size: 22px; font-weight: 800; }
+  .rhdr .post { color: #f6b44a; font-weight: 700; }
+  .gbox { border: 1px solid #8a6a2c; border-radius: 12px; padding: 10px 12px; margin: 0 0 12px; background: #1a160c; }
+  .gbox b { color: #f6e7b4; }
+  #qa { color: #c5d4e6; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="brand">FUR<b>LONG</b> · Academy fixture</div></header>
+<p class="note">Local sample only. The live card reads academy from the decrypted payload and does not load this page.</p>
+<div id="race"></div>
+<p id="qa"></p>
+</div>
+<script src="academy-fixture-data.js"></script>
+<script src="../js/academy.js?v=academy-1"></script>
+<script>
+(function () {
+  var params = new URLSearchParams(location.search);
+  var key = params.get('race') || 'MNR|1';
+  var bare = params.get('bare') === '1';
+  var sample = window.ACADEMY_SAMPLE;
+  var race = sample.races[key];
+  var card = {
+    trk: race.trk,
+    race: race.race_no,
+    post: key === 'MNR|1' ? '7:08PM' : '3:55PM',
+    surf: key === 'MNR|1' ? 'Turf' : 'Dirt',
+    dist: key === 'MNR|1' ? '8f' : '6f',
+    horses: [{ pgm: '1', horse: 'Sample', lanes: [{ kind: 'pat', name: 'Lone ValueTech' }, { kind: 'speed', name: 'Early speed' }], tags: ['Lone ValueTech', 'Other tag'] }]
+  };
+  window.ACADEMY = bare ? null : sample;
+  var host = document.getElementById('race');
+  var section = (window.ACAD && window.ACADEMY) ? ACAD.html(card) : '';
+  var lanes = card.horses[0].lanes.filter(function (l) { return !ACAD.isCopilotLoneVT(l.name); });
+  host.innerHTML = '<div class="rhdr"><span class="t">' + card.trk + ' R' + card.race + '</span>'
+    + '<span class="post">Sched ' + card.post + '</span>'
+    + '<span>' + card.surf + ' · ' + card.dist + '</span></div>'
+    + '<div class="gbox"><b>GAMBLAR LIVE CALL</b><div>Sample live-call box. The academy section sits under it.</div></div>'
+    + section
+    + '<div id="tags" hidden>' + lanes.map(function (l) { return l.name; }).join(' · ') + '</div>';
+  var text = host.innerText;
+  var problems = [];
+  if (bare) {
+    if (section) problems.push('section rendered without academy');
+    if (text.indexOf('VALUECAPPER ACADEMY') >= 0) problems.push('title without academy');
+  } else {
+    if (text.indexOf('VALUECAPPER ACADEMY') < 0) problems.push('missing title');
+    if (text.toLowerCase().indexOf('lone valuetech') < 0) problems.push('missing academy lone valuetech row');
+    if (document.querySelectorAll('.acad-flag').length < 1 && key === 'MNR|1') problems.push('missing flag');
+    if (text.indexOf('GAMBLAR LIVE CALL') < 0) problems.push('missing live call');
+    var liveAt = text.indexOf('GAMBLAR LIVE CALL');
+    var acadAt = text.indexOf('VALUECAPPER ACADEMY');
+    if (acadAt < liveAt) problems.push('academy is above the live call');
+  }
+  if (document.getElementById('tags').textContent.indexOf('Lone ValueTech') >= 0) problems.push('copilot lone valuetech tag still shown');
+  if (document.getElementById('tags').textContent.indexOf('Early speed') < 0) problems.push('other tag hidden');
+  var qa = document.getElementById('qa');
+  qa.textContent = problems.length ? ('Fixture checks failed: ' + problems.join('; ')) : ('Fixture checks passed. ' + key);
+  qa.dataset.ok = problems.length ? '0' : '1';
+})();
+</script>
+</body>
+</html>
