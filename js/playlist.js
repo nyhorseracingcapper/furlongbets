@@ -124,8 +124,178 @@
 
   function parseFeedTs(raw) {
     if (raw == null || raw === '') return null;
+    if (typeof raw === 'number' && isFinite(raw)) return raw;
     var ts = Date.parse(raw);
     return isFinite(ts) ? ts : null;
+  }
+
+  /* A later row in the payload must not cover a newer timestamp. */
+  function newerFeedRow(prev, next) {
+    if (!prev) return next;
+    var a = prev.ts, b = next.ts;
+    if (b == null || !isFinite(Number(b))) return (a == null || !isFinite(Number(a))) ? next : prev;
+    if (a == null || !isFinite(Number(a))) return next;
+    return Number(b) >= Number(a) ? next : prev;
+  }
+
+  function ageSeconds(ts, now) {
+    if (ts == null || now == null || !isFinite(Number(ts)) || !isFinite(Number(now))) return null;
+    return (Number(now) - Number(ts)) / 1000;
+  }
+
+  function withinWindow(ts, now, limit) {
+    var age = ageSeconds(ts, now);
+    return age != null && age >= 0 && age <= Number(limit);
+  }
+
+  function newestStamp(list) {
+    var best = null;
+    (list || []).forEach(function (ts) {
+      if (ts == null || !isFinite(Number(ts))) return;
+      if (best == null || Number(ts) > best) best = Number(ts);
+    });
+    return best;
+  }
+
+  function feedFreshness(input) {
+    input = input || {};
+    var now = input.now;
+    var statusFreshS = input.statusFreshS != null ? input.statusFreshS : 150;
+    var quoteFreshS = input.quoteFreshS != null ? input.quoteFreshS : 30;
+    var statusTs = newestStamp(input.statusTimes);
+    var quoteTs = newestStamp(input.quoteTimes);
+    var statusAge = ageSeconds(statusTs, now);
+    var quoteAge = ageSeconds(quoteTs, now);
+    var statusCurrent = withinWindow(statusTs, now, statusFreshS);
+    var quoteCurrent = withinWindow(quoteTs, now, quoteFreshS);
+    return {
+      newest: newestStamp([statusTs, quoteTs]),
+      statusTs: statusTs,
+      quoteTs: quoteTs,
+      statusAge: statusAge,
+      quoteAge: quoteAge,
+      statusCurrent: statusCurrent,
+      quoteCurrent: quoteCurrent,
+      current: statusCurrent || quoteCurrent
+    };
+  }
+
+  var CLOSED_STATUS = /(^|\b)(off|closed|close|locked|stopped|unofficial|official|final|result|results|paid|complete|cancel|canceled|cancelled)\b/;
+
+  function statusClosed(status) {
+    return CLOSED_STATUS.test(String(status || '').toLowerCase());
+  }
+
+  /* Next open race across the card.
+     A race is done when its status is off/official/closed, or when its post
+     time has passed and a later race at the same track already has a fresh
+     live status or fresh odds. "Awaiting live feed" is only for a feed that
+     is stale on every track. */
+  function boardRaces(input) {
+    input = input || {};
+    var now = input.now;
+    var nowSec = input.nowSec;
+    var statusFreshS = input.statusFreshS != null ? input.statusFreshS : 150;
+    var quoteFreshS = input.quoteFreshS != null ? input.quoteFreshS : 30;
+    var status = input.status || {};
+    var quotes = input.quotes || {};
+    var races = input.races || [];
+    var statusTimes = [];
+    var quoteTimes = [];
+    Object.keys(status).forEach(function (k) { if (status[k]) statusTimes.push(status[k].ts); });
+    Object.keys(quotes).forEach(function (k) { if (quotes[k]) quoteTimes.push(quotes[k].ts); });
+    var feed = feedFreshness({ statusTimes: statusTimes, quoteTimes: quoteTimes, now: now, statusFreshS: statusFreshS, quoteFreshS: quoteFreshS });
+
+    function statusOf(race) { return status[feedKey(race.trk, race.race)] || null; }
+    function hasFreshQuotes(race) {
+      var prefix = feedKey(race.trk, race.race) + '|';
+      return Object.keys(quotes).some(function (k) {
+        if (k.indexOf(prefix) !== 0) return false;
+        var q = quotes[k];
+        return q && Number(q.dec) > 0 && withinWindow(q.ts, now, quoteFreshS);
+      });
+    }
+    function laterLive(race) {
+      var n = Number(race.race);
+      return races.some(function (other) {
+        if (normTrk(other.trk) !== normTrk(race.trk)) return false;
+        if (!(Number(other.race) > n)) return false;
+        var st = statusOf(other);
+        if (st && !statusClosed(st.status) && withinWindow(st.ts, now, statusFreshS)) return true;
+        return hasFreshQuotes(other);
+      });
+    }
+
+    var rows = races.map(function (race) {
+      var st = statusOf(race);
+      var postSec = race.postSec != null ? race.postSec : parsePostSeconds(race.post);
+      var schedSec = (postSec != null && nowSec != null) ? (postSec - nowSec) : null;
+      var age = st ? ageSeconds(st.ts, now) : null;
+      var closed = !!(st && statusClosed(st.status));
+      var postMs = (postSec != null && nowSec != null && now != null) ? (Number(now) - (nowSec - postSec) * 1000) : null;
+      var artifact = !!(closed && postMs != null && st.ts != null && st.ts < postMs - 45 * 60 * 1000);
+      var freshClosed = closed && withinWindow(st.ts, now, statusFreshS);
+      var done = false;
+      var awaiting = false;
+      var kind = 'sched';
+      var mtp = null;
+      var sec = schedSec;
+      if (closed && (freshClosed || !artifact)) {
+        done = true;
+        kind = 'off';
+        sec = null;
+      } else if (st && !closed && withinWindow(st.ts, now, statusFreshS)) {
+        kind = 'up';
+        if (typeof st.mtp === 'number' && st.mtp < 99) {
+          mtp = Math.max(0, Math.round(st.mtp));
+          if (mtp === 0) kind = 'gate';
+          sec = Math.max(kind === 'gate' ? 0 : 1, mtp * 60 - Math.min(55, age > 0 ? age : 0));
+        } else {
+          mtp = null;
+          sec = (schedSec != null && schedSec > 5940) ? schedSec : 5940;
+        }
+      } else if (schedSec != null && schedSec <= 0 && laterLive(race)) {
+        done = true;
+        kind = 'off';
+        sec = null;
+      } else if (schedSec != null && schedSec <= 0 && schedSec > -25 * 60) {
+        kind = 'late';
+        awaiting = !feed.current;
+        sec = 0;
+      } else if (schedSec != null && schedSec <= -25 * 60) {
+        kind = 'past';
+        done = true;
+        sec = null;
+      } else if (schedSec == null) {
+        kind = 'none';
+        sec = null;
+      } else {
+        kind = 'sched';
+        mtp = Math.ceil(schedSec / 60);
+        sec = schedSec;
+      }
+      return {
+        key: feedKey(race.trk, race.race),
+        trk: normTrk(race.trk),
+        race: normRace(race.race),
+        done: done,
+        kind: kind,
+        awaiting: awaiting,
+        mtp: mtp,
+        sec: sec,
+        schedSec: schedSec,
+        age: age,
+        status: st ? st.status : ''
+      };
+    });
+    var open = rows.filter(function (r) { return !r.done && r.sec != null && (r.kind === 'up' || r.kind === 'gate' || r.kind === 'sched' || r.kind === 'late'); });
+    open.sort(function (a, b) {
+      if (a.sec !== b.sec) return a.sec - b.sec;
+      return String(a.race).localeCompare(String(b.race), undefined, { numeric: true });
+    });
+    var byKey = {};
+    rows.forEach(function (r) { byKey[r.key] = r; });
+    return { feed: feed, races: rows, byKey: byKey, next: open[0] || null };
   }
 
   function ingestQuotes(rows, now) {
@@ -141,8 +311,10 @@
       var ts = parseFeedTs(x.ts);
       if (isPriorEtDay(ts, now)) return;
       var open = (x.open_dec == null || x.open_dec === '') ? null : Number(x.open_dec);
-      map[feedKey(x.trk, x.race, pg)] = { first: (open != null && isFinite(open)) ? open : null, dec: dec, ts: ts };
-      count += 1;
+      var key = feedKey(x.trk, x.race, pg);
+      var row = { first: (open != null && isFinite(open)) ? open : null, dec: dec, ts: ts };
+      if (!map[key]) count += 1;
+      map[key] = newerFeedRow(map[key], row);
     });
     return { map: map, count: count };
   }
@@ -154,11 +326,12 @@
       var ts = parseFeedTs(x.ts);
       if (isPriorEtDay(ts, now)) return;
       var mtp = (x.mtp == null || x.mtp === '') ? null : Number(x.mtp);
-      map[feedKey(x.trk, x.race)] = {
+      var key = feedKey(x.trk, x.race);
+      map[key] = newerFeedRow(map[key], {
         mtp: (mtp != null && isFinite(mtp)) ? mtp : null,
         status: String(x.status || '').toLowerCase(),
         ts: ts
-      };
+      });
     });
     return map;
   }
@@ -819,6 +992,9 @@
     isPriorEtDay: isPriorEtDay,
     ingestQuotes: ingestQuotes,
     ingestStatus: ingestStatus,
+    feedFreshness: feedFreshness,
+    boardRaces: boardRaces,
+    ageSeconds: ageSeconds,
     parsePostSeconds: parsePostSeconds,
     countdownText: countdownText,
     clockHms: clockHms,
