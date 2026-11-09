@@ -784,7 +784,7 @@ async function fetchLive(){
       const dec=(x.win_dec==null?null:+x.win_dec); if(dec==null) return;
       m[K(x.trk,String(x.race),pg)]={first:(x.open_dec==null?null:+x.open_dec),dec,ts}; n++; if(ts&&ts>newest) newest=ts; });
     LIVE=m;
-    if(globalThis.PL) Object.keys(m).forEach(k=>{ const lv=m[k]; PL.noteQuote(k, lv.dec, lv.ts); });
+    if(globalThis.PL){ PL_BEAT++; Object.keys(m).forEach(k=>{ const lv=m[k]; PL.noteQuote(k, lv.dec, lv.ts); }); }
     noteFeed('quote', true);
     const countEl=document.getElementById('count'); if(countEl) countEl.textContent=n?(n+' prices stored. Ages are in the readiness strip.'):'No prices stored yet.';
     fetchOpens(); updateLive();
@@ -815,7 +815,7 @@ async function fetchStatus(){
 let FEED={quote:{okAt:null,failAt:null,failing:false,seen:false,lastError:null},status:{okAt:null,failAt:null,failing:false,seen:false,lastError:null}};
 let SCRATCH_AUDIT={};
 let focusPgm=null;
-let CARD_VIEW='card';
+let CARD_VIEW='card', PL_FILTER='all', PL_TRACK='all', PL_SHOW_DONE=false, PL_BEAT=0;
 try{ if(sessionStorage.getItem('fl_view')==='play') CARD_VIEW='play'; }catch(e){}
 let orientDateKey=null;
 function noteFeed(channel, ok, err){
@@ -900,7 +900,7 @@ function playRows(r, V){
   const now=NOWMS(), passed=PL.meterPassed(r, V);
   return PL.playPicks(r).map(pk=>{
     const lv=LIVE[K(r.trk,r.race,pk.pgm)]||null;
-    return { pgm:pk.pgm, name:pk.name, role:pk.role, mlText:pk.mlText, minText:pk.minText,
+    return { pgm:pk.pgm, name:pk.name, role:pk.role, mlText:pk.mlText, minText:pk.minText, gapText:pk.gapText,
       meter:PL.meter({ winDec:lv?lv.dec:null, age:quoteAgeOf(lv, now), ts:lv?lv.ts:null, now:now,
         minDecimal:pk.minDecimal, history:PL.history(K(r.trk,r.race,pk.pgm)), racePassed:passed,
         freshS:FRESH_QUOTE_S, formatTime:function(ts){ return globalThis.FU?FU.formatEt(ts):null; } }) };
@@ -912,36 +912,43 @@ function paintRaceMeter(){
   if(!r||!globalThis.PL){ host.innerHTML=''; return; }
   host.innerHTML=PL.renderMeterBlock(playRows(r, VC[RK(r.trk,r.race)]), 'Play-list meter');
 }
-function playFeedNote(){
-  let newest=0, n=0, fresh=0; const now=NOWMS();
-  Object.keys(LIVE).forEach(k=>{ const lv=LIVE[k]; if(!lv||!isFinite(lv.ts)) return; n++; if(lv.ts>newest) newest=lv.ts;
-    if(globalThis.FU && FU.timeState((now-lv.ts)/1000, FRESH_QUOTE_S)==='current' && lv.dec>0) fresh++; });
-  if(!n) return 'No live_quote rows for race_date '+(DATE||'(invalid)')+'. Meters show no live odds.';
-  const when=globalThis.FU?FU.formatEt(newest):new Date(newest).toISOString();
-  return fresh ? (fresh+' quotes inside '+FRESH_QUOTE_S+'s. Newest '+when+'. win_dec is decimal odds.')
-    : ('Newest stored quote '+when+'. None are inside '+FRESH_QUOTE_S+'s, so every meter shows no live odds.');
+function playQuoteClock(){
+  let newest=0, n=0;
+  Object.keys(LIVE).forEach(k=>{ const lv=LIVE[k]; if(!lv||!isFinite(lv.ts)) return; n++; if(lv.ts>newest) newest=lv.ts; });
+  return { n:n, newest:newest, feedDown:n===0, lastUpdate:newest&&globalThis.PL?PL.clockHms(newest):'' };
 }
-function paintPlayList(){
+function playBadge(r, V){
+  const mark=PL.isPassMark(r, V);
+  if(mark.source==='payload'&&mark.text) return mark.text;
+  if(V&&V.grp==='bet') return 'BET';
+  if(V&&V.grp==='watch') return 'WATCH';
+  if(V&&V.grp==='off') return 'OFF';
+  return 'PLAY';
+}
+function paintPlayList(force){
   const host=document.getElementById('playlist');
-  if(!host||!DATA||!globalThis.PL||!globalThis.FU){ paintRaceMeter(); return; }
+  if(!host||!DATA||!globalThis.PL){ paintRaceMeter(); return; }
   const shown=[], hidden=[];
   DATA.races.forEach(r=>{ const V=VC[RK(r.trk,r.race)]; if(PL.isPassMark(r, V).pass) hidden.push(r); else shown.push(r); });
-  const sig=shown.map(r=>RK(r.trk,r.race)).join(',')+'~'+hidden.length;
-  if(host.dataset.sig!==sig){
-    host.dataset.sig=sig;
-    host.innerHTML=PL.listHtml({ hiddenCount:hidden.length, feedNote:playFeedNote(), races:shown.map(r=>{
-      const V=VC[RK(r.trk,r.race)], meta=usabilityModel(r), mark=PL.isPassMark(r, V);
-      const suffix=String(r.trk).replace(/[^A-Za-z0-9]/g,'')+'-'+String(r.race).replace(/[^A-Za-z0-9]/g,'');
-      const badge=mark.source==='payload'&&mark.text?mark.text:(V&&V.grp==='bet'?'BET':V&&V.grp==='watch'?'WATCHING':V&&V.grp==='off'?'CLOSED':'PLAY');
-      return { key:RK(r.trk,r.race), trk:r.trk, race:String(r.race), meta:[r.surf,r.dist,r.post].filter(Boolean).join(' · '),
-        badge:badge, stageNote:PL.stageNote(meta.stages), ovalsHtml:FU.ovalsHtml(meta,{idSuffix:suffix}), rows:playRows(r, V) };
-    }) });
-  } else {
-    shown.forEach(r=>{ const box=host.querySelector('[data-plrows="'+RK(r.trk,r.race)+'"]');
-      if(box) box.innerHTML=PL.rowsHtml(playRows(r, VC[RK(r.trk,r.race)])); });
-  }
-  const feedEl=host.querySelector('.pl-feed');
-  if(feedEl){ const note=playFeedNote(); if(feedEl.textContent!==note) feedEl.textContent=note; }
+  const feed=playQuoteClock();
+  const nowSec=nowSecET();
+  const records=shown.map(r=>{
+    const V=VC[RK(r.trk,r.race)];
+    const rs=raceState(r);
+    return PL.raceRow({
+      key:RK(r.trk,r.race), trk:r.trk, race:r.race, post:r.post||'',
+      postSec:postSecET(r.post), nowSec:nowSec, finished:isClosedState(rs.k),
+      badge:playBadge(r, V), feedDown:feed.feedDown, picks:playRows(r, V)
+    });
+  });
+  const tracks=[]; records.forEach(r=>{ if(tracks.indexOf(r.trk)<0) tracks.push(r.trk); });
+  const rows=PL.applyView(records, { filter:PL_FILTER, track:PL_TRACK, showFinished:PL_SHOW_DONE });
+  const finishedCount=records.filter(r=>r.finished).length;
+  const sig=[PL_FILTER, PL_TRACK, PL_SHOW_DONE?'1':'0', feed.feedDown?'1':'0', rows.map(r=>r.key+(r.finished?'f':'')).join(',')].join('|');
+  const model={ hiddenCount:hidden.length, feedDown:feed.feedDown, lastUpdate:feed.lastUpdate, beat:PL_BEAT,
+    showFinished:PL_SHOW_DONE, finishedCount:finishedCount, filter:PL_FILTER, track:PL_TRACK, tracks:tracks, rows:rows };
+  if(force||host.dataset.sig!==sig){ host.dataset.sig=sig; host.innerHTML=PL.boardHtml(model); }
+  else PL.patchBoard(host, model);
   paintRaceMeter();
 }
 function renderOrientBar(){
@@ -995,6 +1002,12 @@ function init(){
   if(plHost && !plHost.dataset.bound){
     plHost.dataset.bound='1';
     plHost.addEventListener('click', function(ev){
+      const filter=ev.target.closest&&ev.target.closest('[data-plfilter]');
+      if(filter){ PL_FILTER=filter.getAttribute('data-plfilter'); plHost.dataset.sig=''; paintPlayList(true); return; }
+      const track=ev.target.closest&&ev.target.closest('[data-pltrack]');
+      if(track){ PL_TRACK=track.getAttribute('data-pltrack'); plHost.dataset.sig=''; paintPlayList(true); return; }
+      if(ev.target.closest&&ev.target.closest('[data-pldone]')){ PL_SHOW_DONE=!PL_SHOW_DONE; plHost.dataset.sig=''; paintPlayList(true); return; }
+      if(ev.target.closest&&ev.target.closest('summary, .pl-help')) return;
       const b=ev.target.closest&&ev.target.closest('[data-open]');
       if(!b) return;
       setCardView('card');

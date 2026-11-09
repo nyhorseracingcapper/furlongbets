@@ -195,6 +195,7 @@
 .pl-meter.none .pl-word { color: #c5d4e6; }
 .pl-word { font-weight: 800; }
 .pl-px { font-variant-numeric: tabular-nums; }
+.pl-px:empty { display: none; }
 .pl-upd { color: #9db0c8; font-size: 12px; }
 .pl-cardmeter {
   margin: 0 0 12px;
@@ -207,4 +208,54 @@
 @media (max-width: 620px) {
   .pl-horse { grid-template-columns: 1fr; }
   .pl-toggle { flex-wrap: wrap; }
+}
+
+/* Compact play list. The full-card ovals and horse cards are not restyled here. */
+.pl-board { margin: 6px 0 24px; }
+.pl-key { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 2px 0 6px; color: #e7eef6; font-weight: 800; font-size: 15px; }
+.pl-help { display: inline-flex; }
+.pl-info { list-style: none; width: 44px; height: 44px; border-radius: 50%; border: 1px solid #8aa4c4; background: #15202f; color: #e7eef6; font-weight: 800; cursor: pointer; display: grid; place-items: center; }
+.pl-info::-webkit-details-marker { display: none; }
+.pl-help[open] { display: block; width: 100%; }
+.pl-help p { margin: 8px 0 4px; color: #c5d4e6; font-size: 15px; font-weight: 500; line-height: 1.45; }
+.pl-livebar { display: flex; align-items: center; gap: 8px; min-height: 44px; color: #d5e2f0; font-variant-numeric: tabular-nums; }
+.pl-pulse { width: 12px; height: 12px; border-radius: 50%; background: #34d39b; flex: none; animation: plping 1.6s ease-out infinite; }
+.pl-pulse-off { background: #8b97a6; animation-name: plpingoff; }
+@keyframes plping { 70%, 100% { box-shadow: 0 0 0 8px rgba(52,211,155,0); } }
+@keyframes plpingoff { 70%, 100% { box-shadow: 0 0 0 8px rgba(139,151,166,0); } }
+.pl-auto { margin-left: auto; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #9db0c8; }
+.pl-banner { margin: 8px 0; padding: 12px 14px; border-radius: 12px; background: #3d2f0b; border: 1px solid #d9a400; color: #ffe7a3; font-weight: 700; font-size: 16px; line-height: 1.4; }
+.pl-chips { display: flex; flex-wrap: wrap; gap: 8px; padding: 4px 0 8px; }
+.pl-live { font-variant-numeric: tabular-nums; }
+.pl-live:empty { display: none; }
+.pl-chip { flex: none; min-height: 44px; padding: 8px 14px; border-radius: 999px; border: 1px solid #8aa4c4; background: #15202f; color: #e7eef6; font: inherit; font-weight: 800; cursor: pointer; }
+.pl-chip.on { border-color: #34d39b; background: rgba(52,211,155,.16); color: #d9ffef; }
+.pl-row { display: grid; width: 100%; text-align: left; color: inherit; font: inherit; background: #111a28; border: 1px solid #28384f; border-radius: 14px; margin: 8px 0; padding: 10px 12px 10px 14px; min-height: 76px; cursor: pointer; grid-template-columns: 8px minmax(0,1fr) auto; grid-template-areas: "bar id stat" "bar picks stat" "bar pill stat"; column-gap: 10px; row-gap: 2px; align-items: center; }
+.pl-bar { grid-area: bar; align-self: stretch; border-radius: 6px; background: #5c6b7d; }
+.pl-id { grid-area: id; min-width: 0; }
+.pl-id b { font-size: 18px; }
+.pl-id small, .pl-pick small { color: #c5d4e6; }
+.pl-id small { display: block; font-size: 14px; }
+.pl-nexttag { margin-left: 8px; color: #f6e7b4; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.pl-row.pl-next { border-color: #e0b000; box-shadow: inset 0 0 0 1px rgba(224,176,0,.5); }
+.pl-picks { grid-area: picks; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.pl-pick b { font-size: 17px; }
+.pl-pick small { display: block; font-size: 14px; }
+.pl-gap { display: inline-block; margin-top: 3px; padding: 2px 8px; border-radius: 999px; border: 1px solid #8a6a2c; color: #f6e7b4; font-size: 12px; font-weight: 800; }
+.pl-row .pl-pill { grid-area: pill; justify-self: start; }
+.pl-stat { grid-area: stat; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 4px; min-width: 72px; min-height: 44px; }
+.pl-big { width: 26px; height: 26px; border-radius: 50%; background: #5c6b7d; display: block; }
+.pl-stat b { font-size: 15px; }
+.pl-row.pl-green .pl-bar, .pl-row.pl-green .pl-big { background: #34d39b; }
+.pl-row.pl-yellow .pl-bar, .pl-row.pl-yellow .pl-big { background: #e0b000; }
+.pl-row.pl-red .pl-bar, .pl-row.pl-red .pl-big { background: #ff5d6c; }
+.pl-row.pl-green .pl-stat b { color: #34d39b; }
+.pl-row.pl-yellow .pl-stat b { color: #e0b000; }
+.pl-row.pl-red .pl-stat b { color: #ff8d97; }
+.pl-row.pl-none .pl-stat b { color: #c5d4e6; }
+.pl-row.pl-done { opacity: .7; }
+@media (min-width: 840px) {
+  .pl-row { grid-template-columns: 8px 150px auto minmax(0,1fr) auto; grid-template-areas: "bar id pill picks stat"; min-height: 64px; align-items: center; }
+  .pl-picks { flex-direction: row; flex-wrap: wrap; gap: 8px 18px; align-items: center; }
+  .pl-pick small { display: inline; margin-left: 8px; }
 }
