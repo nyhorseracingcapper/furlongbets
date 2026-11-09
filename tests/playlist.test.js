@@ -248,8 +248,10 @@ test('real 1109 quote rows match a card that stores race and program as numbers'
   assert.ok(none.includes('No plays in this view.'));
   assert.ok(none.includes(PL.FEED_DOWN_BANNER));
   const index = read('index.html');
-  assert.ok(index.includes('js/playlist.js?v=play-board-3'));
+  assert.ok(index.includes('js/playlist.js?v=play-next-4'));
   assert.ok(index.includes('css/playlist.css?v=play-board-3'));
+  assert.ok(index.includes('PL.boardRaces'));
+  assert.ok(index.includes('function followOpenRace'));
   assert.ok(index.includes('PL.ingestQuotes'));
   assert.ok(index.includes('No plays in this view.'));
 });
@@ -278,10 +280,99 @@ test('default ovals keep their ids and the horse card markup is untouched', () =
   assert.ok(horse.includes('class="hcard'));
   assert.equal(horse.includes('pl-meter'), false);
   assert.ok(index.includes('id="playlist"'));
-  assert.ok(index.includes('js/playlist.js?v=play-board-3'));
+  assert.ok(index.includes('js/playlist.js?v=play-next-4'));
   assert.ok(index.includes('function decryptWith'));
   assert.equal(index.includes('playlist-fixture'), false);
   const css = read('css/usability.css');
   assert.ok(css.includes('.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}'));
   assert.ok(css.includes('.fu-oval { display: block; width: 100%; height: auto;'));
+});
+
+test('an off race yields to the next race when that race has fresh odds', () => {
+  const now = Date.parse('2026-11-09T21:55:30Z');
+  const nowSec = 16 * 3600 + 55 * 60 + 30;
+  const statusRows = [
+    { trk: 'IND', race: '7', mtp: 0, status: 'off', ts: '2026-11-09T21:55:10Z' },
+    { trk: 'IND', race: '8', mtp: 16, status: 'up', ts: '2026-11-09T21:55:23Z' },
+    { trk: 'IND', race: '8', mtp: 40, status: 'up', ts: '2026-11-09T18:00:00Z' }
+  ];
+  const quoteRows = [
+    { trk: 'IND', race: '8', pgm: '1', open_dec: 11, win_dec: 12, ts: '2026-11-09T21:55:23Z' },
+    { trk: 'IND', race: '8', pgm: '1', open_dec: 11, win_dec: 99, ts: '2026-11-09T18:00:00Z' },
+    { trk: 'IND', race: '7', pgm: '1', open_dec: 8, win_dec: 7, ts: '2026-11-09T21:44:54Z' },
+    { trk: 'IND', race: '7', pgm: '_s', open_dec: null, win_dec: null, ts: '2026-11-09T21:55:10Z' }
+  ];
+  const status = PL.ingestStatus(statusRows, now);
+  const quotes = PL.ingestQuotes(quoteRows, now);
+  assert.equal(status['IND|8'].mtp, 16);
+  assert.equal(status['IND|8'].status, 'up');
+  assert.equal(status['IND|7'].status, 'off');
+  assert.equal(quotes.map['IND|8|1'].dec, 12);
+  const fresh = PL.feedFreshness({
+    statusTimes: Object.keys(status).map((k) => status[k].ts),
+    quoteTimes: Object.keys(quotes.map).map((k) => quotes.map[k].ts),
+    now: now,
+    statusFreshS: 150,
+    quoteFreshS: 30
+  });
+  assert.equal(fresh.current, true);
+  assert.equal(fresh.statusTs, Date.parse('2026-11-09T21:55:23Z'));
+  assert.equal(fresh.quoteTs, Date.parse('2026-11-09T21:55:23Z'));
+  assert.equal(fresh.statusAge, 7);
+  assert.equal(fresh.quoteAge, 7);
+  assert.equal(fresh.statusCurrent, true);
+  assert.equal(fresh.quoteCurrent, true);
+  const races = [
+    { trk: 'IND', race: '7', postSec: 16 * 3600 + 38 * 60 },
+    { trk: 'IND', race: '8', postSec: nowSec + 7 * 60 }
+  ];
+  const board = PL.boardRaces({ races: races, status: status, quotes: quotes.map, now: now, nowSec: nowSec, statusFreshS: 150, quoteFreshS: 30 });
+  const r7 = board.byKey['IND|7'];
+  const r8 = board.byKey['IND|8'];
+  assert.equal(r7.done, true);
+  assert.equal(r7.awaiting, false);
+  assert.equal(r7.kind, 'off');
+  assert.equal(r8.done, false);
+  assert.equal(r8.kind, 'up');
+  assert.equal(r8.mtp, 16);
+  assert.equal(board.next.trk, 'IND');
+  assert.equal(board.next.race, '8');
+  assert.equal(board.feed.current, true);
+
+  const noOwnStatus = PL.boardRaces({
+    races: races,
+    status: { 'IND|8': status['IND|8'] },
+    quotes: quotes.map,
+    now: now,
+    nowSec: nowSec,
+    statusFreshS: 150,
+    quoteFreshS: 30
+  });
+  assert.equal(noOwnStatus.byKey['IND|7'].done, true);
+  assert.equal(noOwnStatus.byKey['IND|7'].awaiting, false);
+  assert.equal(noOwnStatus.next.race, '8');
+
+  const staleNow = Date.parse('2026-11-09T21:55:30Z');
+  const old = '2026-11-09T21:40:00Z';
+  const staleStatus = PL.ingestStatus([
+    { trk: 'IND', race: '7', mtp: 0, status: 'up', ts: old },
+    { trk: 'IND', race: '8', mtp: 16, status: 'up', ts: old }
+  ], staleNow);
+  const staleQuotes = PL.ingestQuotes([
+    { trk: 'IND', race: '8', pgm: '1', win_dec: 12, ts: old }
+  ], staleNow);
+  const stale = PL.boardRaces({ races: races, status: staleStatus, quotes: staleQuotes.map, now: staleNow, nowSec: nowSec, statusFreshS: 150, quoteFreshS: 30 });
+  assert.equal(stale.feed.current, false);
+  assert.equal(stale.byKey['IND|7'].awaiting, true);
+  assert.equal(stale.byKey['IND|7'].done, false);
+  assert.equal(stale.next.race, '7');
+
+  const closed = PL.ingestStatus([
+    { trk: 'IND', race: '7', mtp: 0, status: 'official', ts: '2026-11-09T21:55:10Z' },
+    { trk: 'IND', race: '8', mtp: 0, status: 'closed', ts: '2026-11-09T21:55:23Z' }
+  ], now);
+  const bothDone = PL.boardRaces({ races: races, status: closed, quotes: {}, now: now, nowSec: nowSec });
+  assert.equal(bothDone.byKey['IND|7'].done, true);
+  assert.equal(bothDone.byKey['IND|8'].done, true);
+  assert.equal(bothDone.next, null);
 });
