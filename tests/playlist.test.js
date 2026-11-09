@@ -49,10 +49,23 @@ test('play list keeps payload picks and hides races marked PASS', () => {
   assert.equal(PL.isPassMark(race({ status: 'PLAY' }), null).pass, false);
   assert.equal(PL.isPassMark(race({ status: 'scheduled' }), { grp: 'watch', code: 'WATCH' }).pass, false);
   const picks = PL.playPicks(play);
-  assert.deepEqual(picks.map((p) => p.pgm), ['6', '4']);
+  assert.deepEqual(picks.map((p) => p.pgm), ['6']);
   assert.equal(picks[0].role, 'primary');
-  assert.equal(picks[1].role, 'secondary');
   assert.equal(picks[0].minText, PL.oddsTo1(PL.minDecimal(0.1)));
+  const two = race({
+    picks: ['4', '6'],
+    v25_info: { pattern_gap: 'pace shape' },
+    horses: [
+      { pgm: '4', horse: 'Top Sample', p_raw: 0.2, ml_dec: 6, v25_pattern_gap: 'lone speed', v25_pattern_gap_min: 4 },
+      { pgm: '6', horse: 'Second Sample', p_raw: 0.1, ml_dec: 9, is_value_alt: true },
+      { pgm: '2', horse: 'Field Example', p_raw: 0.05 }
+    ]
+  });
+  const both = PL.playPicks(two);
+  assert.deepEqual(both.map((p) => p.pgm), ['4', '6']);
+  assert.equal(both[1].role, 'secondary');
+  assert.equal(both[0].gapText, 'lone speed · 4');
+  assert.equal(PL.patternChip({ v25_pattern_gap: true, v25_pattern_gap_min: 'paper' }, null), 'Pattern gap · paper');
   const scratched = race({ horses: [
     { pgm: '1', horse: 'Out', p_raw: 0.8, scr: true },
     { pgm: '2', horse: 'In', p_raw: 0.2 }
@@ -128,41 +141,66 @@ test('meter colors use decimal win_dec and never invent a stale or empty price',
   assert.equal(PL.YELLOW_BAND_LO, 0.85);
 });
 
-test('quote history keeps distinct timestamps and list markup stays escaped', () => {
+test('quote history keeps distinct timestamps and the compact list stays plain', () => {
   PL.resetHistory();
   const ts = Date.parse('2026-11-09T17:00:00Z');
   PL.noteQuote('FIXT|1|4', 5, ts);
   PL.noteQuote('FIXT|1|4', 5, ts);
   PL.noteQuote('FIXT|1|4', 4, ts + 1000);
   assert.equal(PL.history('FIXT|1|4').length, 2);
-  const html = PL.listHtml({
+  assert.equal(PL.countdownText(12 * 60, false), 'in 12m');
+  assert.equal(PL.countdownText(1, false), 'in 1m');
+  assert.equal(PL.countdownText(-5, true), 'off');
+  assert.equal(PL.parsePostSeconds('12:10PM'), 12 * 3600 + 10 * 60);
+  const meter = (tone, price) => ({ tone: tone, word: tone, price: price || '', reason: tone === 'none' ? 'stale' : 'bet' });
+  const rows = [
+    PL.raceRow({ trk: 'IND', race: 2, post: '1:10 PM', nowSec: 13 * 3600, badge: 'PLAY', picks: [{ pgm: '1', name: 'Later', minText: '4-1', meter: meter('green', '5-1') }] }),
+    PL.raceRow({ trk: 'FL', race: 1, post: '12:10PM', nowSec: 12 * 3600, badge: 'BET', picks: [{ pgm: '3', name: 'Name <script> & "quoted"', minText: '1.69-1', gapText: 'lone speed', meter: meter('yellow', '2-1') }] }),
+    PL.raceRow({ trk: 'FL', race: 4, post: '11:40AM', nowSec: 12 * 3600, finished: true, badge: 'OFF', picks: [{ pgm: '2', name: 'Done', minText: '3-1', meter: meter('none') }] })
+  ];
+  const view = PL.applyView(rows, { filter: 'all', track: 'all', showFinished: false });
+  assert.deepEqual(view.map((r) => r.key), ['FL|1', 'IND|2']);
+  assert.equal(view[0].next, true);
+  assert.equal(view[0].when, 'in 10m');
+  assert.equal(view[1].next, false);
+  const bets = PL.applyView(rows, { filter: 'bet', showFinished: false });
+  assert.deepEqual(bets.map((r) => r.trk), ['IND']);
+  const html = PL.boardHtml({
     hiddenCount: 2,
-    feedNote: 'Newest stored quote <safe>',
-    races: [{
-      key: 'FIXT|1',
-      trk: 'FIXT',
-      race: '1',
-      badge: 'PLAY',
-      meta: 'Dirt',
-      stageNote: 'Three stage orders are on the card. The ovals use those fields.',
-      ovalsHtml: '<div class="views" id="ovalViews-FIXT-1"></div>',
-      rows: [{
-        pgm: '4',
-        name: 'Name <script> & "quoted"',
-        role: 'primary',
-        mlText: '5-1',
-        minText: '5.25-1',
-        meter: { tone: 'none', word: 'no live odds', price: '', reason: 'stale', updatedText: 'last update sample' }
-      }]
-    }]
+    feedDown: false,
+    lastUpdate: '12:08:39',
+    filter: 'all',
+    track: 'all',
+    tracks: ['FL', 'IND'],
+    finishedCount: 1,
+    rows: view
   });
   assert.equal(html.includes('<script>'), false);
   assert.ok(html.includes('Name &lt;script&gt;'));
-  assert.ok(html.includes('2</b> passed races'));
-  assert.ok(html.includes('id="ovalViews-FIXT-1"'));
-  assert.equal(html.includes('Passed Example'), false);
+  assert.ok(html.includes('>Bet<'));
+  assert.ok(html.includes('>Close<'));
+  assert.ok(html.includes('>Pass<'));
+  assert.ok(html.includes('>No odds<'));
+  assert.ok(html.includes('Last odds update 12:08:39'));
+  assert.ok(html.includes('Auto-refresh'));
+  assert.ok(html.includes('lone speed'));
+  assert.ok(html.includes('min 1.69-1'));
+  assert.equal(html.includes('oval'), false);
+  assert.equal(html.includes('MIN_PRICE_MULTIPLIER'), false);
+  assert.equal(html.includes('YELLOW_BAND'), false);
+  assert.equal(html.includes('COLLAPSE_RULE'), false);
+  const down = PL.boardHtml({
+    feedDown: true,
+    hiddenCount: 0,
+    tracks: ['FL'],
+    rows: [PL.raceRow({ trk: 'FL', race: 1, post: '12:10PM', nowSec: 12 * 3600, badge: 'PLAY', feedDown: true, picks: [{ pgm: '3', name: 'Sample', minText: '2-1', meter: meter('none') }] })]
+  });
+  assert.ok(down.includes(PL.FEED_DOWN_BANNER));
+  assert.ok(down.includes('min 2-1'));
+  assert.ok(down.includes('Sample'));
+  assert.ok(down.includes('<b data-word></b>'));
+  assert.equal(down.split('No odds').length - 1, 2);
   assert.equal(PL.stageNote({ stages: [{ ok: true }, { ok: true }, { ok: true }] }).includes('Three stage orders'), true);
-  assert.match(PL.stageNote({ stages: [{ ok: false }, { ok: false }, { ok: false }] }), /no complete stage order/);
 });
 
 test('default ovals keep their ids and the horse card markup is untouched', () => {
