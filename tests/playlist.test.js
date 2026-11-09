@@ -205,6 +205,52 @@ test('quote history keeps distinct timestamps and the compact list stays plain',
   assert.equal(PL.stageNote({ stages: [{ ok: true }, { ok: true }, { ok: true }] }).includes('Three stage orders'), true);
 });
 
+test('real 1109 quote rows match a card that stores race and program as numbers', () => {
+  const now = Date.parse('2026-11-09T21:07:51Z');
+  const rows = [
+    { trk: 'FL', race: '8', pgm: '_s', open_dec: null, win_dec: null, ts: '2026-11-09T21:07:51.500973+00:00' },
+    { trk: 'FL', race: '8', pgm: '1', open_dec: 11, win_dec: 13, ts: '2026-11-09T21:07:51.500973+00:00' },
+    { trk: 'FL', race: '8', pgm: '5', open_dec: 0, win_dec: 0, ts: '2026-11-09T21:07:51.500973+00:00' },
+    { trk: 'GP', race: '2', pgm: '4', open_dec: 6, win_dec: 5, ts: '2026-11-08T21:07:51.000000+00:00' }
+  ];
+  const got = PL.ingestQuotes(rows, now);
+  assert.equal(got.count, 2);
+  const key = PL.feedKey('FL', 8, 1);
+  assert.equal(key, PL.feedKey('fl', '08', '1'));
+  assert.equal(got.map[key].dec, 13);
+  assert.equal(got.map[key].first, 11);
+  assert.equal(PL.oddsTo1(got.map[key].dec), '12-1');
+  const zero = got.map[PL.feedKey('FL', '8', 5)];
+  assert.equal(zero.dec, 0);
+  const priced = PL.meter({ winDec: zero.dec, age: 2, ts: now, minDecimal: 4, freshS: 30 });
+  assert.equal(priced.reason, 'nonpositive');
+  assert.equal(priced.price, '');
+  assert.equal(got.map[PL.feedKey('GP', 2, 4)], undefined);
+  const status = PL.ingestStatus([
+    { trk: 'FL', race: '8', mtp: 0, status: 'off', ts: '2026-11-09T21:07:51.500973+00:00' },
+    { trk: 'GP', race: '2', mtp: 12, status: 'up', ts: '2026-11-08T21:07:51.000000+00:00' }
+  ], now);
+  assert.equal(status[PL.feedKey('FL', 8)].status, 'off');
+  assert.equal(status[PL.feedKey('FL', 8)].mtp, 0);
+  assert.equal(status[PL.feedKey('GP', 2)], undefined);
+  const row = PL.raceRow({
+    trk: 'FL', race: 8, post: '11:00 PM', nowSec: 16 * 3600 + 7 * 60, badge: 'PLAY',
+    picks: [{ pgm: '1', name: 'Sample', minText: '4-1', meter: PL.meter({ winDec: 13, age: 4, ts: now, minDecimal: 4, freshS: 30 }) }]
+  });
+  assert.equal(row.hasLive, true);
+  assert.equal(row.picks[0].liveText, '12-1');
+  const html = PL.boardHtml({ rows: [row], tracks: ['FL'], hiddenCount: 0, feedDown: false, lastUpdate: '16:07:51' });
+  assert.ok(html.includes('Sample'));
+  assert.ok(html.includes('live 12-1'));
+  const none = PL.boardHtml({ rows: [], tracks: [], hiddenCount: 43, feedDown: true });
+  assert.ok(none.includes('No plays in this view.'));
+  assert.ok(none.includes(PL.FEED_DOWN_BANNER));
+  const index = read('index.html');
+  assert.ok(index.includes('js/playlist.js?v=play-live-2'));
+  assert.ok(index.includes('PL.ingestQuotes'));
+  assert.ok(index.includes('No plays in this view.'));
+});
+
 test('default ovals keep their ids and the horse card markup is untouched', () => {
   const horses = [{ pgm: '1', horse: 'A', p_raw: 1 }, { pgm: '2', horse: 'B', p_raw: 0.2 }];
   const meta = FU.buildMeta({
@@ -229,7 +275,7 @@ test('default ovals keep their ids and the horse card markup is untouched', () =
   assert.ok(horse.includes('class="hcard'));
   assert.equal(horse.includes('pl-meter'), false);
   assert.ok(index.includes('id="playlist"'));
-  assert.ok(index.includes('js/playlist.js?v=t438-usability-3'));
+  assert.ok(index.includes('js/playlist.js?v=play-live-2'));
   assert.ok(index.includes('function decryptWith'));
   assert.equal(index.includes('playlist-fixture'), false);
   const css = read('css/usability.css');

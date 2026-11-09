@@ -56,8 +56,111 @@
     var o = n - 1;
     if (o <= 0.03) return 'EVN';
     var rounded = Math.round(o * 100) / 100;
-    var text = rounded.toFixed(2).replace(/0+$/, '').replace(/\.$/, '');
+    var text;
+    try { text = rounded.toFixed(2); }
+    catch (e) { text = String(Math.round(o)); }
+    text = String(text).replace(/0+$/, '').replace(/\.$/, '');
     return text + '-1';
+  }
+
+  var TRACK_ALIAS = {
+    'FINGER LAKES': 'FL',
+    'GULFSTREAM': 'GP',
+    'GULFSTREAM PARK': 'GP',
+    'INDIANA': 'IND',
+    'INDIANA GRAND': 'IND',
+    'HORSESHOE INDIANAPOLIS': 'IND',
+    'LAUREL': 'LRL',
+    'LAUREL PARK': 'LRL',
+    'MOUNTAINEER': 'MNR',
+    'MOUNTAINEER PARK': 'MNR',
+    'MAHONING VALLEY': 'MVR',
+    'PARX': 'PHA',
+    'PARX RACING': 'PHA',
+    'WILL ROGERS': 'WRD',
+    'WILL ROGERS DOWNS': 'WRD',
+    'ZIA': 'ZIA',
+    'ZIA PARK': 'ZIA'
+  };
+
+  function normTrk(trk) {
+    var s = String(trk == null ? '' : trk).trim().toUpperCase();
+    return TRACK_ALIAS[s] || s;
+  }
+
+  function normRace(race) {
+    var s = String(race == null ? '' : race).trim();
+    if (/^\d+$/.test(s)) return String(parseInt(s, 10));
+    return s.toUpperCase();
+  }
+
+  function normPgm(pgm) {
+    var s = String(pgm == null ? '' : pgm).trim();
+    if (/^\d+$/.test(s)) return String(parseInt(s, 10));
+    return s.toUpperCase();
+  }
+
+  function feedKey(trk, race, pgm) {
+    var key = normTrk(trk) + '|' + normRace(race);
+    if (pgm == null) return key;
+    return key + '|' + normPgm(pgm);
+  }
+
+  function etDayKey(ms) {
+    var parts = new Intl.DateTimeFormat('en-US', {
+      timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit'
+    }).formatToParts(new Date(Number(ms)));
+    var g = {};
+    parts.forEach(function (p) { if (p.type !== 'literal') g[p.type] = p.value; });
+    return g.year + '-' + g.month + '-' + g.day;
+  }
+
+  /* A quote from an earlier Eastern Time date is yesterday's carry-over.
+     A quote from today stays, even when the race posts many hours later. */
+  function isPriorEtDay(ts, now) {
+    if (ts == null || now == null || !isFinite(Number(ts)) || !isFinite(Number(now))) return false;
+    return etDayKey(ts) < etDayKey(now);
+  }
+
+  function parseFeedTs(raw) {
+    if (raw == null || raw === '') return null;
+    var ts = Date.parse(raw);
+    return isFinite(ts) ? ts : null;
+  }
+
+  function ingestQuotes(rows, now) {
+    var map = {};
+    var count = 0;
+    (rows || []).forEach(function (x) {
+      if (!x) return;
+      var pg = normPgm(x.pgm);
+      if (!pg || pg.charAt(0) === '_') return;
+      if (x.win_dec == null || x.win_dec === '') return;
+      var dec = Number(x.win_dec);
+      if (!isFinite(dec)) return;
+      var ts = parseFeedTs(x.ts);
+      if (isPriorEtDay(ts, now)) return;
+      var open = (x.open_dec == null || x.open_dec === '') ? null : Number(x.open_dec);
+      map[feedKey(x.trk, x.race, pg)] = { first: (open != null && isFinite(open)) ? open : null, dec: dec, ts: ts };
+      count += 1;
+    });
+    return { map: map, count: count };
+  }
+
+  function ingestStatus(rows, now) {
+    var map = {};
+    (rows || []).forEach(function (x) {
+      if (!x) return;
+      var ts = parseFeedTs(x.ts);
+      if (isPriorEtDay(ts, now)) return;
+      var mtp = (x.mtp == null || x.mtp === '') ? null : Number(x.mtp);
+      map[feedKey(x.trk, x.race)] = {
+        mtp: (mtp != null && isFinite(mtp)) ? mtp : null,
+        status: String(x.status || '').toLowerCase(),
+        ts: ts
+      };
+    });
+    return map;
   }
 
   function passToken(value) {
@@ -149,12 +252,13 @@
     });
   }
 
-  function plainGap(value) {
+  function plainGap(value, depth) {
+    if (depth > 4) return '';
     if (value == null || value === false || value === '') return '';
     if (typeof value === 'number' && isFinite(value)) return 'Gap ' + String(Math.round(value * 100) / 100);
     if (typeof value === 'string') return value.trim();
     if (typeof value === 'object') {
-      return plainGap(value.label || value.text || value.name || value.tag || value.gap || value.pattern_gap);
+      return plainGap(value.label || value.text || value.name || value.tag || value.gap || value.pattern_gap, (depth || 0) + 1);
     }
     return '';
   }
@@ -619,7 +723,7 @@
     parts.push(chip(doneLabel, 'data-pldone="1"', !!model.showFinished));
     parts.push('</div>');
     if (model.hiddenCount) parts.push('<p class="pl-count">' + model.hiddenCount + ' passed, on the full card.</p>');
-    if (!rows.length) parts.push('<p class="pl-empty">No races in this view.</p>');
+    if (!rows.length) parts.push('<p class="pl-empty">No plays in this view.</p>');
     parts.push('<div class="pl-rows">');
     rows.forEach(function (row) { parts.push(rowHtmlCompact(row)); });
     parts.push('</div></div>');
@@ -693,6 +797,13 @@
     listHtml: listHtml,
     renderMeterBlock: renderMeterBlock,
     FEED_DOWN_BANNER: FEED_DOWN_BANNER,
+    feedKey: feedKey,
+    normTrk: normTrk,
+    normRace: normRace,
+    normPgm: normPgm,
+    isPriorEtDay: isPriorEtDay,
+    ingestQuotes: ingestQuotes,
+    ingestStatus: ingestStatus,
     parsePostSeconds: parsePostSeconds,
     countdownText: countdownText,
     clockHms: clockHms,
