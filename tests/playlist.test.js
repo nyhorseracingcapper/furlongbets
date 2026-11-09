@@ -1,0 +1,198 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const PL = require('../js/playlist.js');
+const FU = require('../js/usability.js');
+
+const root = path.join(__dirname, '..');
+const read = (p) => fs.readFileSync(path.join(root, p), 'utf8');
+
+function race(extra) {
+  return Object.assign({
+    trk: 'FIXT',
+    race: 1,
+    horses: [
+      { pgm: '4', horse: 'Primary Example', p_raw: 0.2, ml_dec: 6 },
+      { pgm: '6', horse: 'Secondary Example', p_raw: 0.1, ml_dec: 9 },
+      { pgm: '2', horse: 'Field Example', p_raw: 0.05 }
+    ]
+  }, extra || {});
+}
+
+test('minimum price is fair decimal odds times the one multiplier constant', () => {
+  assert.equal(PL.MIN_PRICE_MULTIPLIER, 1.25);
+  assert.equal(PL.fairDecimal(0.2), 5);
+  assert.equal(PL.minDecimal(0.2), 5 * PL.MIN_PRICE_MULTIPLIER);
+  assert.equal(PL.oddsTo1(5), '4-1');
+  assert.equal(PL.oddsTo1(PL.minDecimal(0.2)), '5.25-1');
+  assert.equal(PL.oddsTo1(1.6), '0.6-1');
+  assert.equal(PL.modelProb({ win: 20 }), 0.2);
+  assert.equal(PL.minDecimal(0), null);
+  assert.equal(PL.minDecimal(1.2), null);
+});
+
+test('play list keeps payload picks and hides races marked PASS', () => {
+  const play = race({ verdict: 'PLAY', pick: '6' });
+  const passed = race({ trk: 'FIXT', race: 2, verdict: 'PASS', horses: [{ pgm: '1', horse: 'Passed Example', p_raw: 0.4 }] });
+  const livePass = race({ trk: 'FIXT', race: 3, horses: [{ pgm: '8', horse: 'Live Pass Example', p_raw: 0.3 }] });
+  const split = PL.splitRaces([play, passed, livePass], {
+    'FIXT|1': { grp: 'pass', code: 'PASS_EDGE' },
+    'FIXT|3': { grp: 'pass', code: 'PASS_LOW', badge: 'PASS (LOW CONFIDENCE)' }
+  });
+  assert.deepEqual(split.shown.map((r) => r.race), [1]);
+  assert.deepEqual(split.hidden.map((r) => r.race), [2, 3]);
+  assert.equal(PL.isPassMark(play, { grp: 'pass', code: 'PASS_EDGE' }).pass, false);
+  assert.equal(PL.meterPassed(play, { grp: 'pass', code: 'PASS_EDGE' }), true);
+  assert.equal(PL.isPassMark(race({ verdict: 'PLAY' }), { grp: 'bet', code: 'BET_NOW' }).pass, false);
+  assert.equal(PL.isPassMark(race({ copilot_verdict: 'PASS (pace)' }), { grp: 'bet', code: 'BET_NOW' }).pass, true);
+  assert.equal(PL.isPassMark(race({ status: 'PLAY' }), null).pass, false);
+  assert.equal(PL.isPassMark(race({ status: 'scheduled' }), { grp: 'watch', code: 'WATCH' }).pass, false);
+  const picks = PL.playPicks(play);
+  assert.deepEqual(picks.map((p) => p.pgm), ['6', '4']);
+  assert.equal(picks[0].role, 'primary');
+  assert.equal(picks[1].role, 'secondary');
+  assert.equal(picks[0].minText, PL.oddsTo1(PL.minDecimal(0.1)));
+  const scratched = race({ horses: [
+    { pgm: '1', horse: 'Out', p_raw: 0.8, scr: true },
+    { pgm: '2', horse: 'In', p_raw: 0.2 }
+  ] });
+  assert.deepEqual(PL.playPicks(scratched).map((p) => p.pgm), ['2']);
+});
+
+test('meter colors use decimal win_dec and never invent a stale or empty price', () => {
+  PL.resetHistory();
+  const now = Date.parse('2026-11-09T17:00:00Z');
+  const min = PL.minDecimal(0.2);
+  function read(over) {
+    return PL.meter(Object.assign({
+      minDecimal: min,
+      freshS: 30,
+      now: now,
+      formatTime: () => 'Nov 9, 2026, 12:00:00 PM ET'
+    }, over));
+  }
+  const bet = read({ winDec: 6.25, age: 4, ts: now - 4000 });
+  assert.equal(bet.tone, 'green');
+  assert.equal(bet.word, 'BET');
+  assert.equal(bet.price, '5.25-1');
+  const near = read({ winDec: 6, age: 4, ts: now - 4000 });
+  assert.equal(near.tone, 'yellow');
+  assert.equal(near.word, 'NEAR MIN');
+  assert.equal(near.price, '5-1');
+  const below = read({ winDec: 5, age: 4, ts: now - 4000 });
+  assert.equal(below.tone, 'red');
+  assert.equal(below.word, 'BELOW MIN');
+  assert.equal(below.price, '4-1');
+  const edge = read({ winDec: PL.YELLOW_BAND_LO * min, age: 1, ts: now - 1000 });
+  assert.equal(edge.tone, 'yellow');
+  const stale = read({ winDec: 5, age: 30.001, ts: now - 31000 });
+  assert.equal(stale.tone, 'none');
+  assert.equal(stale.word, 'no live odds');
+  assert.equal(stale.price, '');
+  assert.equal(stale.reason, 'stale');
+  assert.match(stale.updatedText, /last update/);
+  assert.equal(stale.updatedText.includes('4-1'), false);
+  const missing = read({});
+  assert.equal(missing.reason, 'missing');
+  assert.equal(missing.price, '');
+  assert.match(missing.updatedText, /no quote stored/);
+  const empty = read({ winDec: 0, age: 3, ts: now - 3000 });
+  assert.equal(empty.reason, 'nonpositive');
+  assert.equal(empty.price, '');
+  assert.match(empty.updatedText, /not a scratch/);
+  assert.equal(empty.scratchInferred, false);
+  const ahead = read({ winDec: 8, age: -5, ts: now + 5000 });
+  assert.equal(ahead.reason, 'future');
+  assert.equal(ahead.price, '');
+  const passed = read({ winDec: 20, age: 2, ts: now - 2000, racePassed: true });
+  assert.equal(passed.word, 'PASS');
+  assert.equal(passed.tone, 'red');
+  assert.equal(passed.price, '');
+  const drop = read({
+    winDec: 6,
+    age: 2,
+    ts: now,
+    history: [{ dec: 10, ts: now - 60000 }, { dec: 0, ts: now - 50000 }]
+  });
+  assert.equal(drop.reason, 'collapse');
+  assert.equal(drop.word, 'LATE-MONEY COLLAPSE');
+  assert.equal(drop.price, '5-1');
+  const stillUp = read({ winDec: 9, age: 2, ts: now, history: [{ dec: 10, ts: now - 60000 }] });
+  assert.equal(stillUp.reason, 'bet');
+  const mild = read({ winDec: 6, age: 2, ts: now, history: [{ dec: 6.4, ts: now - 60000 }] });
+  assert.equal(mild.reason, 'near');
+  const old = read({ winDec: 5, age: 2, ts: now, history: [{ dec: 10, ts: now - (PL.COLLAPSE_RULE.windowMs + 1000) }] });
+  assert.equal(old.reason, 'below');
+  assert.equal(PL.COLLAPSE_RULE.drop, 0.3);
+  assert.equal(PL.YELLOW_BAND_LO, 0.85);
+});
+
+test('quote history keeps distinct timestamps and list markup stays escaped', () => {
+  PL.resetHistory();
+  const ts = Date.parse('2026-11-09T17:00:00Z');
+  PL.noteQuote('FIXT|1|4', 5, ts);
+  PL.noteQuote('FIXT|1|4', 5, ts);
+  PL.noteQuote('FIXT|1|4', 4, ts + 1000);
+  assert.equal(PL.history('FIXT|1|4').length, 2);
+  const html = PL.listHtml({
+    hiddenCount: 2,
+    feedNote: 'Newest stored quote <safe>',
+    races: [{
+      key: 'FIXT|1',
+      trk: 'FIXT',
+      race: '1',
+      badge: 'PLAY',
+      meta: 'Dirt',
+      stageNote: 'Three stage orders are on the card. The ovals use those fields.',
+      ovalsHtml: '<div class="views" id="ovalViews-FIXT-1"></div>',
+      rows: [{
+        pgm: '4',
+        name: 'Name <script> & "quoted"',
+        role: 'primary',
+        mlText: '5-1',
+        minText: '5.25-1',
+        meter: { tone: 'none', word: 'no live odds', price: '', reason: 'stale', updatedText: 'last update sample' }
+      }]
+    }]
+  });
+  assert.equal(html.includes('<script>'), false);
+  assert.ok(html.includes('Name &lt;script&gt;'));
+  assert.ok(html.includes('2</b> passed races'));
+  assert.ok(html.includes('id="ovalViews-FIXT-1"'));
+  assert.equal(html.includes('Passed Example'), false);
+  assert.equal(PL.stageNote({ stages: [{ ok: true }, { ok: true }, { ok: true }] }).includes('Three stage orders'), true);
+  assert.match(PL.stageNote({ stages: [{ ok: false }, { ok: false }, { ok: false }] }), /no complete stage order/);
+});
+
+test('default ovals keep their ids and the horse card markup is untouched', () => {
+  const horses = [{ pgm: '1', horse: 'A', p_raw: 1 }, { pgm: '2', horse: 'B', p_raw: 0.2 }];
+  const meta = FU.buildMeta({
+    race: { trk: 'FIXT', race: 1, surf: 'Dirt', horses: horses, stage_orders: { first: ['1', '2'], second: ['2', '1'], finish: ['1', '2'] } },
+    quotes: {},
+    now: Date.parse('2026-11-09T17:00:00Z'),
+    card: { mmdd: '1109', card_year: 2026 },
+    mode: 'card',
+    feed: {}
+  });
+  const bare = FU.ovalsHtml(meta);
+  assert.ok(bare.includes('id="ovalViews"'));
+  assert.ok(bare.includes('id="ovalZoom"'));
+  assert.ok(bare.includes('onclick="fuToggleOvalZoom()"'));
+  assert.equal((bare.match(/data-stage="/g) || []).length, 3);
+  const extra = FU.ovalsHtml(meta, { idSuffix: 'FIXT-1' });
+  assert.ok(extra.includes('id="ovalViews-FIXT-1"'));
+  assert.equal(extra.includes('id="ovalViews"'), false);
+  assert.ok(extra.includes('fuToggleOvalZoom(\'ovalViews-FIXT-1\')'));
+  const index = read('index.html');
+  const horse = index.slice(index.indexOf('function horseCard'), index.indexOf('/* ---------- detail ---------- */'));
+  assert.ok(horse.includes('class="hcard'));
+  assert.equal(horse.includes('pl-meter'), false);
+  assert.ok(index.includes('id="playlist"'));
+  assert.ok(index.includes('js/playlist.js?v=t438-usability-3'));
+  assert.ok(index.includes('function decryptWith'));
+  assert.equal(index.includes('playlist-fixture'), false);
+  const css = read('css/usability.css');
+  assert.ok(css.includes('.views{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px}'));
+  assert.ok(css.includes('.fu-oval { display: block; width: 100%; height: auto;'));
+});

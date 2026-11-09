@@ -881,7 +881,11 @@
     return notes;
   }
 
-  function ovalsHtml(meta) {
+  function ovalsHtml(meta, opts) {
+    var suffix = opts && opts.idSuffix ? String(opts.idSuffix).replace(/[^A-Za-z0-9_-]/g, '') : '';
+    var viewsId = suffix ? ('ovalViews-' + suffix) : 'ovalViews';
+    var zoomId = suffix ? ('ovalZoom-' + suffix) : 'ovalZoom';
+    var zoomFn = suffix ? ("fuToggleOvalZoom('" + viewsId + "')") : 'fuToggleOvalZoom()';
     var paint = meta.surface.paint;
     var names = nameMap(meta);
     var blocks = meta.stages.stages.map(function (stage) {
@@ -893,9 +897,9 @@
     }).join(' ');
     return '<section class="fu-ovals" aria-label="Three projected-order ovals" data-asset="' + esc(RELEASE.version) + '">'
       + '<div class="fu-ovalbar"><span class="fu-k">Projected order</span>'
-      + '<button type="button" class="mini-nav" id="ovalZoom" onclick="fuToggleOvalZoom()">Enlarge ovals</button></div>'
+      + '<button type="button" class="mini-nav" id="' + zoomId + '" onclick="' + zoomFn + '">Enlarge ovals</button></div>'
       + '<p class="sr-only">' + esc(sr) + '</p>'
-      + '<div class="views" id="ovalViews">' + blocks.join('') + '</div>'
+      + '<div class="views" id="' + viewsId + '">' + blocks.join('') + '</div>'
       + '<p class="fu-cap">Schematic spacing, same 26-unit original oval. Not a physical position and not a calibrated call.</p>'
       + '</section>';
   }
