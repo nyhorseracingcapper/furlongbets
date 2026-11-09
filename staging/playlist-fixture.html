@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>FURLONG play-list fixture — not a live card</title>
+<link rel="stylesheet" href="../css/usability.css">
+<style>
+  :root { color-scheme: dark; }
+  body { margin: 0; background: #080c14; color: #e7eef6; font-family: system-ui, Segoe UI, Roboto, sans-serif; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 12px 14px 48px; }
+  header { position: sticky; top: 0; background: #080c14; border-bottom: 1px solid #1b2636; padding: 10px 0; z-index: 2; }
+  .hrow { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .brand { font-weight: 800; font-size: 18px; }
+  .brand b { color: #34d39b; }
+  .banner { margin: 12px 0; padding: 10px 12px; border: 1px solid #8a6a2c; border-radius: 10px; background: #2a2410; color: #f6e7b4; }
+  button.qa { min-height: 44px; margin: 4px 4px 0 0; font: inherit; font-weight: 700; color: #e7eef6; background: #15202f; border: 1px solid #8aa4c4; border-radius: 10px; padding: 8px 12px; }
+  #qa { color: #c5d4e6; }
+  .excerpt { margin-top: 18px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="hrow">
+  <div class="brand">FUR<b>LONG</b> · Play list fixture</div>
+</div></header>
+<p class="banner">Synthetic fixture. Not the live card, not a forecast, and not a decrypted production card. Passed races are omitted from this list and would remain on the full card.</p>
+<div class="pl-toggle" role="tablist" aria-label="Fixture view">
+  <button type="button" id="viewPlay" class="on" aria-pressed="true">Play list</button>
+  <button type="button" id="viewCard" aria-pressed="false">Full card excerpt</button>
+</div>
+<button type="button" class="qa" id="lift">Raise the short price above its minimum</button>
+<p id="qa"></p>
+<div id="playlist"></div>
+<section class="excerpt" id="excerpt" hidden>
+  <h2 class="fu-h">Full card excerpt</h2>
+  <p class="pl-note">The three ovals and the horse cards stay in their existing layout. This excerpt adds only the small meter under the ovals.</p>
+  <div id="excerpt-ovals"></div>
+  <div id="excerpt-meter"></div>
+</section>
+</div>
+<script src="../js/usability.js"></script>
+<script src="../js/playlist.js"></script>
+<script src="playlist-fixture.js"></script>
+</body>
+</html>

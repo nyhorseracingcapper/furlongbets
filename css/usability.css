@@ -114,3 +114,97 @@
 @media (max-width: 620px) {
   .hhead { min-height: 44px; }
 }
+
+/* Play list and the small meter. Scoped so horse cards and the three ovals keep their layout. */
+.pl-toggle { display: flex; gap: 8px; margin: 12px 0 4px; }
+.pl-toggle button {
+  min-height: 44px;
+  font: inherit;
+  font-weight: 800;
+  color: #e7eef6;
+  background: #15202f;
+  border: 1px solid #8aa4c4;
+  border-radius: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+}
+.pl-toggle button.on { border-color: #34d39b; background: rgba(52, 211, 155, .13); color: #d9ffef; }
+.pl-legend, .pl-count, .pl-feed, .pl-stage, .pl-empty, .pl-note {
+  color: #c5d4e6;
+  font-size: 14px;
+  line-height: 1.45;
+}
+.pl-legend { margin: 8px 0; }
+.pl-legend div { margin: 4px 0; }
+.pl-note { margin: 8px 0 0; }
+.pl-feed {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border: 1px solid #8a6a2c;
+  border-radius: 10px;
+  background: #2a2410;
+  color: #f6e7b4;
+}
+.pl-race {
+  margin: 12px 0;
+  padding: 10px 12px;
+  border: 1px solid #28384f;
+  border-radius: 12px;
+  background: #111a28;
+}
+.pl-hd { display: flex; align-items: center; gap: 8px; justify-content: space-between; }
+.pl-jump {
+  min-height: 44px;
+  flex: 1;
+  text-align: left;
+  color: inherit;
+  background: transparent;
+  border: 0;
+  font: inherit;
+  cursor: pointer;
+  padding: 4px 0;
+}
+.pl-meta { color: #9db0c8; font-weight: 600; }
+.pl-pill {
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: .04em;
+  border: 1px solid #2e7a56;
+  color: #b7f0d4;
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+.pl-horse {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px dashed #28384f;
+}
+.pl-who small { display: block; color: #9db0c8; font-size: 12px; }
+.pl-meter { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; min-height: 44px; }
+.pl-dot { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background: #8b97a6; flex: none; }
+.pl-dot.green, .pl-meter.green .pl-dot { background: #34d39b; }
+.pl-dot.yellow, .pl-meter.yellow .pl-dot { background: #e0b000; }
+.pl-dot.red, .pl-meter.red .pl-dot { background: #ff5d6c; }
+.pl-dot.none, .pl-meter.none .pl-dot { background: #8b97a6; }
+.pl-meter.green .pl-word { color: #34d39b; }
+.pl-meter.yellow .pl-word { color: #e0b000; }
+.pl-meter.red .pl-word { color: #ff8d97; }
+.pl-meter.none .pl-word { color: #c5d4e6; }
+.pl-word { font-weight: 800; }
+.pl-px { font-variant-numeric: tabular-nums; }
+.pl-upd { color: #9db0c8; font-size: 12px; }
+.pl-cardmeter {
+  margin: 0 0 12px;
+  padding: 8px 10px;
+  border: 1px solid #28384f;
+  border-radius: 12px;
+  background: #0d1522;
+}
+.pl-cap { color: #c5d4e6; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; }
+@media (max-width: 620px) {
+  .pl-horse { grid-template-columns: 1fr; }
+  .pl-toggle { flex-wrap: wrap; }
+}
