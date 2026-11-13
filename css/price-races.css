@@ -1,0 +1,15 @@
+/* PRICE RACES: paper-only lens section (amber accent; distinct from the cyan ROBOT and the green Bet Slip). Display only. */
+.prc-wrap{margin:12px 0;padding:13px 15px;border-radius:13px;background:#1a1408;border:1px solid #8a6a1f;border-left:5px solid #f0b429;color:#e6d9b3}
+.prc-wrap>summary{cursor:pointer;list-style:none;color:#f0b429;font-size:19px;font-weight:800;margin:0 0 6px;padding:2px 0}
+.prc-paper{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:20px;background:#3a2606;border:1px solid #f0b429;color:#ffd77a;font-size:11px;font-weight:800;letter-spacing:.4px;vertical-align:middle}
+.prc-sub{font-size:12px;font-weight:600;color:#b79a55;margin-left:6px}
+.prc-note{font-size:12px;color:#c9b88a;margin:2px 0 8px;line-height:1.5}
+.prc-rule{margin:5px 0;padding:7px 10px;border-radius:9px;background:#241c0a;border:1px solid #5a4614;font-size:12.5px;line-height:1.45}.prc-rec{color:#b9a46a}
+.prc-race{margin:8px 0 2px;font-size:13px;font-weight:800;color:#f1e6c6}.prc-lens{color:#f0b429}
+.prc-horse{margin:4px 0 8px;padding:8px 11px;border-radius:10px;background:#2a210c;border:1px solid #8a6a1f;border-left:4px solid #f0b429}
+.prc-hn{font-size:14px;font-weight:800;color:#fff4d6}.prc-ln{font-size:12px;color:#d6c38a;margin-left:6px}
+.prc-al{font-size:12.5px;color:#e6d9b3;margin-top:5px;line-height:1.45}.prc-al b{color:#f0b429}
+.prc-rpo{margin-left:14px;border-left-color:#7fd1ff;background:#13222b}.prc-tag{display:inline-block;margin-right:8px;padding:1px 8px;border-radius:20px;background:#0d3b52;border:1px solid #7fd1ff;color:#bfe8ff;font-size:11px;font-weight:800;letter-spacing:.4px}
+.prc-sel{margin:8px 0 12px;padding:10px 12px;border-radius:11px;background:#14230f;border:1px solid #5fb34a;border-left:5px solid #7ddc5f}.prc-selh{font-size:14px;font-weight:800;color:#c9f5b8;margin-bottom:2px}.prc-selsub{font-size:12px;color:#a9cf9a;margin-bottom:6px;line-height:1.45}
+.prc-sel .prc-horse{border-left-color:#7ddc5f;background:#1b3014;margin-left:0}.prc-sel .prc-tag{background:#1f4a12;border-color:#7ddc5f;color:#d4ffc4}.prc-type{font-size:12.5px;color:#d7eccb;margin-top:5px;line-height:1.45}.prc-type b{color:#9be67f}
+.prc-empty{margin-top:8px;font-size:12px;color:#a58f58}.prc-empty>summary{font-size:12px;font-weight:700;color:#c9ac63;cursor:pointer}.prc-empty div{padding:1px 0}

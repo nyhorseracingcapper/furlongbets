@@ -367,8 +367,8 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   has('function onClockTick');
   has('visibilitychange');
   has('function tryUnlock');
-  has('id="carddate">11-12-2026<');
-  assert.equal(index.includes('id="carddate">11-11-2026<'), false);
+  has('id="carddate">11-13-2026<');
+  assert.equal(index.includes('id="carddate">11-12-2026<'), false);
   assert.equal(index.includes('off the tote (late scratch)'), false);
   assert.equal(index.includes('Supplemental runner board'), false);
   assert.equal(index.includes('International Velvet'), false);
@@ -383,7 +383,7 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   assert.equal(sha('functions/api/callback.js'), '4ac250a99864ed8d9cb852995fd867e0f8e49212f92477adfa96b69cfee7716f');
   assert.equal(sha('members_card.enc'), '4a1c4c3e9af3dc7cb75a72b4993dce364a861739ee66411d8e436a0159f0a93f');
   const encLine = index.split('\n').find((line) => line.startsWith('const ENC'));
-  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '50cdbeef368bf577f3fa898aecbf46e6514e51d3a6eb7be89d30ad383a764fe9');
+  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '4924c04391457630efc33fb6357e7119025966b6121aaca439ae8a08d6f29e63');
   const encObj = JSON.parse(encLine.slice(encLine.indexOf('{'), encLine.lastIndexOf('}') + 1));
   assert.equal(encObj.n, 200000);
   assert.deepEqual(Object.keys(encObj).sort(), ['c', 'i', 'n', 's']);
