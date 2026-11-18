@@ -17,10 +17,10 @@
   function html(data){
     var d=info(data); if(!d) return '';
     var n=d.n_pass||0;
-    if(!n) return '<details id="robot-sec" class="rbt-wrap" open><summary>&#129302; '+esc(d.title)+'<span class="rbt-sub">'+esc(d.none_yet)+'</span></summary><div class="rbt-note">'+esc(d.note)+'</div><div class="rbt-ang">'+esc(d.none_yet)+'</div></details>';
+    if(!n) return '<details id="robot-sec" class="rbt-wrap"><summary>&#129302; '+esc(d.title)+'<span class="rbt-sub">'+esc(d.none_yet)+'</span></summary><div class="rbt-note">'+esc(d.note)+'</div><div class="rbt-ang">'+esc(d.none_yet)+'</div></details>';
     var am=angleMap(d), bad=d.angles.filter(function(a){ return a.status!=='evaluated'; });
     var sub=n+' passing angle'+(n===1?'':'s')+' &middot; '+d.flagged_horses+' horse'+(d.flagged_horses===1?'':'s')+' flagged today'+(bad.length?' &middot; '+bad.length+' cannot be evaluated today':'');
-    var out=['<details id="robot-sec" class="rbt-wrap" open><summary>&#129302; '+esc(d.title)+'<span class="rbt-sub">'+sub+'</span></summary>','<div class="rbt-note">'+esc(d.note)+'</div>'];
+    var out=['<details id="robot-sec" class="rbt-wrap"><summary>&#129302; '+esc(d.title)+'<span class="rbt-sub">'+sub+'</span></summary>','<div class="rbt-note">'+esc(d.note)+'</div>'];
     d.angles.forEach(function(a){
       if(a.status==='evaluated') out.push('<div class="rbt-ang"><b class="rbt-id">'+esc(a.id)+'</b>'+esc(a.definition)+'<br><span class="rbt-rec">'+esc(a.record)+'</span></div>');
       else out.push('<div class="rbt-ang rbt-cannot"><b class="rbt-id">'+esc(a.id)+'</b>'+esc(a.definition)+'<br><span class="rbt-cn">'+esc(a.id)+': cannot evaluate today (missing '+esc(a.missing)+')</span><br><span class="rbt-rec">'+esc(a.record)+'</span></div>');
@@ -42,10 +42,10 @@
     var key=String(r.trk)+'|'+String(r.race), hit=null;
     (d.races||[]).forEach(function(x){ if(String(x.trk)+'|'+String(x.race)===key) hit=x; });
     if(!hit) return '';
-    if(!d.n_pass) return '<section class="rbt-r" aria-label="THE ROBOT"><span class="rbt-k">&#129302; THE ROBOT</span> <span class="rbt-dim">'+esc(d.none_yet)+'</span></section>';
-    if(!(hit.entries||[]).length) return '<section class="rbt-r" aria-label="THE ROBOT"><span class="rbt-k">&#129302; THE ROBOT</span> <span class="rbt-dim">'+esc(d.empty_race)+'</span></section>';
+    if(!d.n_pass) return '<details class="rbt-r" aria-label="THE ROBOT"><summary><span class="rbt-k">&#129302; THE ROBOT</span></summary> <span class="rbt-dim">'+esc(d.none_yet)+'</span></details>';
+    if(!(hit.entries||[]).length) return '<details class="rbt-r" aria-label="THE ROBOT"><summary><span class="rbt-k">&#129302; THE ROBOT</span></summary> <span class="rbt-dim">'+esc(d.empty_race)+'</span></details>';
     var am=angleMap(d);
-    return '<section class="rbt-r rbt-hit" aria-label="THE ROBOT"><span class="rbt-k">&#129302; THE ROBOT</span>'+hit.entries.map(function(e){ return horse(e,am); }).join('')+'<div class="rbt-note">'+esc(d.note)+'</div></section>';
+    return '<details class="rbt-r rbt-hit" aria-label="THE ROBOT"><summary><span class="rbt-k">&#129302; THE ROBOT</span></summary>'+hit.entries.map(function(e){ return horse(e,am); }).join('')+'<div class="rbt-note">'+esc(d.note)+'</div></details>';
   }
   var api={info:info, html:html, race:race};
   root.RB=api;

@@ -50,16 +50,16 @@
       var key=String(r.trk||'').toUpperCase()+'|'+String(parseInt(r.race,10));
       var a=races[key]; if(!a) return '';
       var M=A.meta||{}, R=M.rules||{}, lean=a.lean||{};
-      return '<section class="acad" aria-label="ValueCapper Academy">'
-        +'<div class="acad-h"><span class="acad-k">VALUECAPPER ACADEMY</span>'+(a.setup&&a.setup.shape?'<span class="acad-chip">'+esc(a.setup.shape)+'</span>':'')
-        +'<span class="acad-scen">VC AccuPressure: '+esc((a.setup&&a.setup.vc_scenario)||'—')+' · ARC '+esc(a.arc_size!=null?a.arc_size:'—')+'</span></div>'
+      return '<details class="acad acad-wrap" aria-label="ValueCapper Academy">'
+        +'<summary class="acad-h"><span class="acad-k">VALUECAPPER ACADEMY</span>'+(a.setup&&a.setup.shape?'<span class="acad-chip">'+esc(a.setup.shape)+'</span>':'')
+        +'<span class="acad-scen">VC AccuPressure: '+esc((a.setup&&a.setup.vc_scenario)||'—')+' · ARC '+esc(a.arc_size!=null?a.arc_size:'—')+'</span></summary>'
         +'<div class="acad-rows">'
         +row(1,'Race setup',setup(a))+row(2,'AccuPressure',accu(a))+row(3,'Lone ValueTech',lvt(a))
         +row(4,'Unique',uniq(a))+row(5,'Anti-value',anti(a))
         +'<div class="acad-lean '+(lean.kind==='lean'?'lean':'none')+'"><span class="acad-l"><i>6</i>Academy lean</span>'+esc(lean.text||'—')+'</div>'
         +'</div><div class="acad-f"><span>'+esc(M.caption||'')+'</span>'
         +'<details><summary>Rules ▸</summary><ol class="acad-rules">'
-        +['setup','pressure','lone_vt','unique','anti','lean'].map(function(k){return '<li>'+esc(R[k]||'')+'</li>';}).join('')+'</ol></details></div></section>';
+        +['setup','pressure','lone_vt','unique','anti','lean'].map(function(k){return '<li>'+esc(R[k]||'')+'</li>';}).join('')+'</ol></details></div></details>';
     }catch(e){ return ''; }
   }
   function isCopilotLoneVT(text){ return /lone\s*valuetech/i.test(String(text==null?'':text)); }
