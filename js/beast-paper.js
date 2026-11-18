@@ -4,7 +4,7 @@
 (function(root){
   var MIN_DEC=5.0;   // 4/1 at post (decimal 5.00)
   function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
-  function info(data){ var b=data&&data.beast_paper; return (b&&b.paper_only===true&&b.trk!=null&&b.race!=null&&b.pgm!=null)?b:null; }
+  function info(data){ return null; } /* BEAST removed from CoPilot 2026-11-17; historical files kept */
   function key(data,K){ var b=info(data); if(!b) return null; return K?K(b.trk,b.race,b.pgm):(b.trk+'|'+b.race+'|'+b.pgm); }
   function minDec(data){ var b=info(data); var m=b&&Number(b.min_dec); return (m&&m>=MIN_DEC)?m:MIN_DEC; }
   function inRace(data,race,K){ var b=info(data); if(!b||!race) return false; return key(data,K)===(K?K(race.trk,race.race,b.pgm):(race.trk+'|'+race.race+'|'+b.pgm)); }
