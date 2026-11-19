@@ -1,28 +1,18 @@
-/* THE ROBOT: compact plays list + angles table (steel-cyan accent; distinct from the green Bet Slip). Display only. */
+/* THE ROBOT: compact play cards with angle info on each fire (steel-cyan accent; distinct from the green Bet Slip). Display only. */
 .rbt-wrap{margin:12px 0;padding:13px 15px;border-radius:13px;background:#0a1820;border:1px solid #1f6f86;border-left:5px solid #4fd1e8;color:#cfe0ee;max-width:100%;overflow:hidden;box-sizing:border-box}
 .rbt-wrap>summary{cursor:pointer;list-style:none;color:#4fd1e8;font-size:19px;font-weight:800;margin:0 0 8px;padding:2px 0}
-.rbt-sub{font-size:12px;font-weight:600;color:#6fa3b3;margin-left:6px}
-.rbt-h{font-size:11px;font-weight:800;letter-spacing:.06em;color:#4fd1e8;margin:12px 0 6px}
-.rbt-play{font-size:13.5px;color:#e8f6fa;padding:2px 0;line-height:1.45;overflow-wrap:anywhere;white-space:pre-wrap}
-.rbt-tblwrap{width:100%;max-width:100%;overflow:hidden}
-.rbt-tbl{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px;color:#cfe0ee}
-.rbt-tbl col.ang{width:4.6em}.rbt-tbl col.num{width:4.8em}
-.rbt-tbl th{text-align:left;font-size:11px;letter-spacing:.04em;color:#6fa3b3;font-weight:700;padding:4px 6px 4px 0;border-bottom:1px solid #1b4a5c}
-.rbt-tbl td{padding:5px 6px 5px 0;vertical-align:top;border-bottom:1px solid #132833;overflow-wrap:anywhere}
-.rbt-tbl th.num,.rbt-tbl td.num{text-align:right;white-space:nowrap;padding-left:14px;padding-right:0;font-variant-numeric:tabular-nums}
-.rbt-id{color:#4fd1e8}
-.rbt-na{color:#8a9aa3;font-weight:600;font-size:10px;margin-left:3px}
-.rbt-fn{margin-top:8px;font-size:11px;color:#7d97a3;line-height:1.4;overflow-wrap:anywhere}
+.rbt-sub{font-size:12px;font-weight:600;color:#6fa3b3;margin-left:2px}
+.rbt-card{margin:8px 0;padding:9px 11px;border-radius:10px;background:#0f2a36;border:1px solid #2b8aa3;border-left:4px solid #4fd1e8}
+.rbt-line{font-size:14px;font-weight:800;color:#e8f6fa;line-height:1.4;overflow-wrap:anywhere}
+.rbt-det{font-size:12.5px;color:#9fc3d0;margin-top:4px;line-height:1.45;overflow-wrap:anywhere}
+.rbt-none{font-size:13.5px;color:#e8f6fa;padding:4px 0}
 .rbt-r{margin:8px 0;padding:8px 11px;border-radius:10px;background:#0a1820;border:1px solid #1b4a5c;border-left:4px solid #4fd1e8;font-size:12.5px;color:#cfe0ee}
 .rbt-r.rbt-hit{background:#0c202b;border-color:#2b8aa3}.rbt-k{color:#4fd1e8;font-weight:800;font-size:12px;letter-spacing:.04em}.rbt-dim{color:#7d97a3}
-.rbt-r .rbt-play{margin:4px 0 2px;font-size:13px}
+.rbt-r .rbt-card{margin:6px 0 4px}
 @media (max-width:600px){
   .rbt-wrap{padding:12px}
   .rbt-wrap>summary{font-size:17px}
-  .rbt-play{font-size:13px}
-  .rbt-tbl{font-size:11.5px}
-  .rbt-tbl col.ang{width:4.2em}
-  .rbt-tbl col.num{width:4.6em}
-  .rbt-tbl th,.rbt-tbl td{padding:4px 4px 4px 0}
-  .rbt-tbl th.num,.rbt-tbl td.num{padding-left:12px;padding-right:0}
+  .rbt-card{padding:8px 10px}
+  .rbt-line{font-size:13.5px}
+  .rbt-det{font-size:12px}
 }
