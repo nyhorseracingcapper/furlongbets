@@ -9,10 +9,18 @@
   function angleLine(a,cond){
     return '<div class="rbt-al"><b>'+esc(a.id)+'</b> '+esc(a.definition)+(cond?' <span class="rbt-cd">'+esc(cond)+'</span>':'')+'<br><span class="rbt-rec">'+esc(a.record)+'</span></div>';
   }
+  function signalLine(x,am){
+    if(am[x.id]) return angleLine(am[x.id], x.condition);
+    var parts=x.parts||String(x.id||'').split('/').filter(Boolean);
+    var bits=[];
+    for(var i=0;i<parts.length;i++){ var a=am[parts[i]]; if(a) bits.push('<b>'+esc(a.id)+'</b> '+esc(a.definition)+'<br><span class="rbt-rec">'+esc(a.record)+'</span>'); }
+    if(!bits.length) return '';
+    return '<div class="rbt-al"><b>'+esc(x.id)+'</b> both fire'+(x.condition?' <span class="rbt-cd">'+esc(x.condition)+'</span>':'')+'<br>'+bits.join('')+'</div>';
+  }
   function horse(e,am){
     return '<div class="rbt-horse"><span class="rbt-hn">#'+esc(e.pgm)+' '+esc(e.horse)+'</span>'
       +'<span class="rbt-ln">ML '+dash(e.ml_txt)+' &middot; VC line '+dash(e.vc_line)+' &middot; VC #'+dash(e.vc_rank)+' &middot; BM #'+dash(e.bm_rank)+' &middot; SC #'+dash(e.sc_rank)+'</span>'
-      +'<div class="rbt-als">'+(e.angles||[]).map(function(x){ var a=am[x.id]; return a?angleLine(a,x.condition):''; }).join('')+'</div></div>';
+      +'<div class="rbt-als">'+(e.angles||[]).map(function(x){ return signalLine(x,am); }).join('')+'</div></div>';
   }
   function html(data){
     var d=info(data); if(!d) return '';
