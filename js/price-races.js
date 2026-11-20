@@ -8,7 +8,7 @@
   function html(data){
     var d=info(data); if(!d) return '';
     var fl=d.flagged_races||0, n=(d.races||[]).length, cnt=d.lens_counts||{}, pk=d.picks_by_lens||{}, xc=d.extra_lens_counts||{}, nx=d.extra_picks||0, ns=d.sel_picks||0;
-    var out=['<details id="pricerace-sec" class="prc-wrap"><summary>&#128176; '+esc(d.title)+'<span class="prc-paper">PAPER ONLY &middot; NOT A BET SIGNAL</span><span class="prc-sub">'+fl+' paper pick'+(fl===1?'':'s')+' in '+n+' races'+(nx?' + '+nx+' extra-flag horse'+(nx===1?'':'s'):'')+(ns?' + '+ns+' race-selected play'+(ns===1?'':'s'):'')+'</span></summary>',
+    var out=['<details id="pricerace-sec" class="prc-wrap" open><summary>&#128176; '+esc(d.title)+'<span class="prc-paper">PAPER ONLY &middot; NOT A BET SIGNAL</span><span class="prc-sub">'+fl+' paper pick'+(fl===1?'':'s')+' in '+n+' races'+(nx?' + '+nx+' extra-flag horse'+(nx===1?'':'s'):'')+(ns?' + '+ns+' race-selected play'+(ns===1?'':'s'):'')+'</span></summary>',
       '<div class="prc-note">'+esc(d.note)+'</div>'];
     if(Array.isArray(d.sel)){   // SEL: race-selected plays at the very top (most selective list)
       out.push('<div class="prc-sel"><div class="prc-selh">&#127919; SEL &middot; Race-selected plays ('+d.sel.length+' today)</div><div class="prc-selsub">Frozen race-selection tree: each race is read for its type and gets the one method chosen for that type (or no play). '+d.sel.length+' of '+(d.sel_races_read||0)+' races read get a play. Extra paper flag only.</div>');
