@@ -383,7 +383,7 @@ test('public index keeps auth and the freshness windows, and drops inferred scra
   assert.equal(sha('functions/api/callback.js'), '4ac250a99864ed8d9cb852995fd867e0f8e49212f92477adfa96b69cfee7716f');
   assert.equal(sha('members_card.enc'), '4a1c4c3e9af3dc7cb75a72b4993dce364a861739ee66411d8e436a0159f0a93f');
   const encLine = index.split('\n').find((line) => line.startsWith('const ENC'));
-  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), 'cef43cf608605e5103a247dbb991bd6503c8c0a9efb61c5fa3667e55b851f890');
+  assert.equal(crypto.createHash('sha256').update(encLine).digest('hex'), '2efa7c0197486184b226a19a4c831e3b46c97693647cc401c85a5c24037f7687');
   const encObj = JSON.parse(encLine.slice(encLine.indexOf('{'), encLine.lastIndexOf('}') + 1));
   assert.equal(encObj.n, 200000);
   assert.deepEqual(Object.keys(encObj).sort(), ['c', 'i', 'n', 's']);
