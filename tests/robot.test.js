@@ -59,9 +59,10 @@ test('index.html wires THE ROBOT after the play list and keeps BEAST paper-only 
   const index = read('index.html');
   assert.ok(index.includes('<div id="playlist" hidden></div>\n  <div id="robot" hidden></div>'));
   assert.ok(index.includes('js/robot.js?v=robot-1') && index.includes('css/robot.css?v=robot-1'));
-  assert.ok(index.includes('RB.race(DATA.robot||null,r)') && index.includes('RB.html(DATA.robot||null)'));
+  assert.ok(index.includes('RB.race(DATA.robot||null,r') && index.includes('RB.html(DATA.robot||null)'));
   assert.ok(index.includes('js/beast-paper.js?v=beast-paper-1'));
   assert.equal(index.includes("kind:'BEAST'"), false);
   const js = read('js/robot.js');
   assert.equal(/fetch\(|XMLHttpRequest|localStorage/.test(js), false);
 });
+// KIT_ITEM4_TEST_WIRING

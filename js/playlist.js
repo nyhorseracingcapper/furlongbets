@@ -12,6 +12,7 @@
 
   /* Fair decimal odds are multiplied by this to get the minimum acceptable price. */
   var MIN_PRICE_MULTIPLIER = 1.25;
+  var CAUTION_X = 1.6;   // KIT item 3 (display only)
 
   /* Placeholder until the band is fitted on timed tote snapshots. Yellow when
      live decimal odds are in [YELLOW_BAND_LO, 1) times the minimum. */
@@ -381,16 +382,23 @@
     return isPassMark(race, live).pass || livePass(live);
   }
 
+  /* KIT item 2: LEAN (top pick under 30%) is display only -- never on the play list, never counted as a play. */
+  function isDisplayOnly(race) {
+    return !!(race && (race.display_only === true || race.lean_display_only === true));
+  }
+
   function splitRaces(races, liveByKey) {
     var shown = [];
     var hidden = [];
+    var lean = [];
     (races || []).forEach(function (race) {
       var key = String(race && race.trk) + '|' + String(race && race.race);
       var live = liveByKey ? liveByKey[key] : null;
-      if (isPassMark(race, live).pass) hidden.push(race);
+      if (isDisplayOnly(race)) lean.push(race);
+      else if (isPassMark(race, live).pass) hidden.push(race);
       else shown.push(race);
     });
-    return { shown: shown, hidden: hidden };
+    return { shown: shown, hidden: hidden, lean: lean };
   }
 
   function byPgm(horses) {
@@ -613,9 +621,11 @@
       };
     }
     if (win >= minD) {
+      var c16 = win >= CAUTION_X * (minD / MIN_PRICE_MULTIPLIER);   // KIT item 3: display-only caution at >= 1.6x fair
       return {
         tone: 'green',
-        word: 'BET',
+        caution16: c16,
+        word: c16 ? 'BET · ⚠ ≥1.6× fair' : 'BET',
         price: oddsTo1(win),
         reason: 'bet',
         scratchInferred: false,
@@ -691,7 +701,8 @@
     var hidden = model.hiddenCount || 0;
     var parts = [legendHtml()];
     parts.push('<p class="pl-count"><b>' + races.length + '</b> play-list races. <b>' + hidden
-      + '</b> passed races are hidden here and stay on the full card.</p>');
+      + '</b> passed races are hidden here and stay on the full card.'
+      + (model.leanCount ? ' <b>' + model.leanCount + '</b> LEAN races (top pick under 30%) are display only, not plays.' : '') + '</p>');
     if (model.feedNote) parts.push('<p class="pl-feed">' + esc(model.feedNote) + '</p>');
     if (!races.length) parts.push('<p class="pl-empty">No play-list races. Passed races stay on the full card.</p>');
     races.forEach(function (race) {
@@ -911,6 +922,7 @@
     parts.push(chip(doneLabel, 'data-pldone="1"', !!model.showFinished));
     parts.push('</div>');
     if (model.hiddenCount) parts.push('<p class="pl-count">' + model.hiddenCount + (model.hiddenCount === 1 ? ' passed race stays' : ' passed races stay') + ' on the full card.</p>');
+    if (model.leanCount) parts.push('<p class="pl-count pl-lean">' + model.leanCount + (model.leanCount === 1 ? ' LEAN race (top pick under 30%) is' : ' LEAN races (top pick under 30%) are') + ' display only, not plays, and stay on the full card.</p>');
     if (!rows.length) parts.push('<p class="pl-empty">No plays in this view.</p>');
     parts.push('<div class="pl-rows">');
     rows.forEach(function (row) { parts.push(rowHtmlCompact(row)); });
@@ -974,6 +986,7 @@
     isPassMark: isPassMark,
     meterPassed: meterPassed,
     splitRaces: splitRaces,
+    isDisplayOnly: isDisplayOnly,
     playPicks: playPicks,
     noteQuote: noteQuote,
     history: history,
@@ -1008,3 +1021,5 @@
     esc: esc
   };
 });
+// KIT_ITEM3_CAUTION
+// KIT_ITEM2_LEAN_DISPLAY_ONLY
